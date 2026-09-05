@@ -87,7 +87,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
   <div id="view"></div>
   <div id="poster"><div class="label">Walk·In</div><div id="postertxt" class="dim">Loading the room</div><button id="load" class="act">Open the coffee room</button></div>
 
-  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><span class="label" id="dbg"></span></div>
+  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><span class="label" title="Mouse: look · wheel: zoom · WASD: move · Q/E: up/down · Shift: boost · C: follow Spot">WASD fly · Q/E up/down · C follow</span><span class="label" id="dbg"></span></div>
   <div class="hud" id="live"><span class="dot" id="dot"></span><span class="label" id="livetxt">idle</span></div>
 
   <div class="hud scrim" id="task">
@@ -238,7 +238,8 @@ function drawTop(){if(!M.world)return; const W=top.clientWidth,H=top.clientHeigh
 top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({type:"goal",robot:"robot_1",x,y});});
 
 /* ---------- three ---------- */
-let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0;
+let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now();
+const flyKeys=new Set();
 const dbg=t=>{const e=$("#dbg"); if(e) e.textContent=t;};
 function initThree(){const host=$("#view"); host.innerHTML="";
   renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(1); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; host.appendChild(renderer.domElement);
@@ -258,7 +259,13 @@ function look(){cam.position.copy(eye); cam.lookAt(eye.x+Math.cos(camPitch)*Math
 function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=e=>{d=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId);followPause=performance.now()+8000;}; el.onpointerup=()=>d=null;
   el.onpointermove=e=>{if(!d)return; camYaw-=(e.clientX-d[0])*.004; camPitch=Math.max(-1.2,Math.min(1.2,camPitch+(e.clientY-d[1])*.004)); d=[e.clientX,e.clientY]; look();};
   el.onwheel=e=>{e.preventDefault(); followPause=performance.now()+8000; const s=e.deltaY>0?-.5:.5; eye.x+=s*Math.cos(camPitch)*Math.cos(camYaw); eye.y+=s*Math.cos(camPitch)*Math.sin(camYaw); eye.z=Math.max(.4,eye.z+s*Math.sin(camPitch)); look();};
-  addEventListener("keydown",e=>{if(e.key==="c") follow=!follow;}); window.__setFollow=v=>{follow=v;}; window.__setCam=(x,y,z,tx,ty,tz)=>{follow=false; eye.set(x,y,z); camYaw=Math.atan2(ty-y,tx-x); camPitch=Math.atan2(tz-z,Math.hypot(tx-x,ty-y)); look();};}
+  const editing=e=>/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||e.target.isContentEditable;
+  addEventListener("keydown",e=>{if(editing(e))return; const k=e.key.toLowerCase(); if(k==="c"){follow=!follow; return;} if(["w","a","s","d","q","e","shift"].includes(k)){flyKeys.add(k); follow=false; e.preventDefault();}});
+  addEventListener("keyup",e=>flyKeys.delete(e.key.toLowerCase())); addEventListener("blur",()=>flyKeys.clear());
+  window.__setFollow=v=>{follow=v;}; window.__setCam=(x,y,z,tx,ty,tz)=>{follow=false; eye.set(x,y,z); camYaw=Math.atan2(ty-y,tx-x); camPitch=Math.atan2(tz-z,Math.hypot(tx-x,ty-y)); look();};}
+function flyCamera(){const now=performance.now(), dt=Math.min(.05,(now-flyLast)/1000); flyLast=now; if(!flyKeys.size)return;
+  const speed=(flyKeys.has("shift")?7:2.2)*dt, f=new THREE.Vector3(Math.cos(camYaw),Math.sin(camYaw),0), right=new THREE.Vector3(-Math.sin(camYaw),Math.cos(camYaw),0);
+  if(flyKeys.has("w"))eye.addScaledVector(f,speed); if(flyKeys.has("s"))eye.addScaledVector(f,-speed); if(flyKeys.has("d"))eye.addScaledVector(right,speed); if(flyKeys.has("a"))eye.addScaledVector(right,-speed); if(flyKeys.has("e"))eye.z+=speed; if(flyKeys.has("q"))eye.z=Math.max(.25,eye.z-speed); look();}
 function resizeThree(){if(!renderer)return; const h=$("#view"); renderer.setSize(h.clientWidth,h.clientHeight); cam.aspect=h.clientWidth/h.clientHeight; cam.updateProjectionMatrix();}
 
 /* people: stylised humanoid figures, one height each, posed seated or standing, legs swing when they walk */
@@ -369,7 +376,7 @@ function updateThree(st){if(!scene)return; const now=performance.now(), dt=Math.
       if(!want) want=new THREE.Vector3(Math.min(Math.max(lead.x,OX+.8),OX+NX*RES-.8),Math.min(Math.max(lead.y,OY+.8),OY+NY*RES-.8),3.6);}
     eye.lerp(want,.04); camYaw+=((Math.atan2(lead.y-eye.y,lead.x-eye.x)-camYaw+Math.PI*3)%(Math.PI*2)-Math.PI)*.07;
     const aimZ=(lead.skill==='pick'||lead.skill==='pour'||lead.skill==='place')?1.0:0.75; const tp=Math.atan2(aimZ-eye.z,Math.hypot(lead.x-eye.x,lead.y-eye.y)); camPitch+=(tp-camPitch)*.06; look();}}
-function animate(){requestAnimationFrame(animate); try{renderer&&renderer.render(scene,cam);}catch(e){}}
+function animate(){requestAnimationFrame(animate); flyCamera(); try{renderer&&renderer.render(scene,cam);}catch(e){}}
 async function loadBackdrop(){const w=M.world;
   if(!w.splat_url){dbg("no splat for this room"); boxGroup.visible=true; return;}
   dbg("loading the room…");
