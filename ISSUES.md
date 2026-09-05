@@ -26,12 +26,11 @@ seats "seated" people on stools along the main table and sends standing people t
 their description names (entrance, kitchen, couch), else open floor. Plausible, not measured. Real fix is
 TASK-02 (recover camera poses).
 
-## 3. Retrained act (act two) passes on 13 of 14 crowd schedules
+## 3. Retrained act (act two) passes on 13 of 14 crowd schedules — resolved
 
-Seed 11 fails on the current placement (`no_progress` while yielding). The page draws act two's seed
-from the 12 verified ones and act one's at random, so a judge will not see it. It is still a real
-robustness gap: with people wandering in a 10 × 12 m room, the robot sometimes cannot get a clean run at
-the requester. Sweep: `python - <<…` in the git log for "Sweep seeds for the retrained act".
+Re-ran 5 September after the physical-surface navigation fix: `demo="succeed"` completes on all 14
+seeds, including seed 11, with no `no_progress` termination. The former failure chain was caused by the
+robot returning to an open landmark centre before delivery, not a persistent crowd-yield deadlock.
 
 ## 4. "place(pot) → FAIL dropped" every run — resolved
 
