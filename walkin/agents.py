@@ -70,6 +70,8 @@ class Cast:
             return (r.x, r.y) if r is not None and r.active else None
         if isinstance(target, (int, np.integer)) and int(target) in self.by_id:
             a = self.by_id[int(target)]
+            if jitter:   # walking to someone: stop on clear floor beside them, not inside their chair
+                return snap_free_xy(self.goal_grid, self.origin, a.x, a.y)
             return (a.x, a.y)
         return None
 

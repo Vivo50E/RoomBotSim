@@ -84,9 +84,12 @@ def equality_xml(n_robots, spawns):
         for k in range(1, n_robots + 1) for oid in spawns)
 
 
-def contact_xml(n_robots, spawns):
+def contact_xml(n_robots, spawns, people=()):
     ex = [f'<exclude body1="{oid}" body2="robot_{k}{suf}"/>'
           for k in range(1, n_robots + 1) for oid in spawns for suf in ("", "_arm", "_hand")]
+    # people are mocap capsules driven kinematically; a person brushing a table must not sweep the
+    # coffee onto the floor, so they never collide with the objects at all
+    ex += [f'<exclude body1="person_{p["id"]}" body2="{oid}"/>' for p in people for oid in spawns]
     if "cup" in spawns and "pot" in spawns:
         ex.append('<exclude body1="pot" body2="cup"/>')
     return "\n".join(ex)
@@ -140,7 +143,7 @@ def build_mjcf(world, people, robot_types=None, spawns=None, n_robots=N_ROBOTS):
 {equality_xml(n_robots, spawns)}
 </equality>
 <contact>
-{contact_xml(n_robots, spawns)}
+{contact_xml(n_robots, spawns, people)}
 </contact>
 </mujoco>'''
 

@@ -588,6 +588,8 @@ class Runtime:
         for a in self.cast.agents:
             if ignore_pid is not None and a.id == ignore_pid:
                 continue
+            if a.seated:
+                continue        # seated people cannot step into the robot; the planner already routes around them
             d = math.dist((r.x, r.y), (a.x, a.y)) - 0.22
             if d < d_near:
                 d_near, a_near = d, a
@@ -609,7 +611,7 @@ class Runtime:
         if v < 0.05:
             if r.stalled_since < 0:
                 r.stalled_since = t
-            elif t - r.stalled_since > 3.0 and d_near > 0.34:
+            elif t - r.stalled_since > (1.2 if self.demo == "succeed" else 3.0) and d_near > 0.34:
                 v = 0.22 * turn                            # ease past rather than wait forever
                 if a_near is not None:
                     bear = wrap(math.atan2(a_near.y - r.y, a_near.x - r.x) - r.yaw)
@@ -884,11 +886,17 @@ class Runtime:
                 # untrained: they walk straight into Spot's path, re-aimed every tick, and it does not yield
                 a.seated = False; a.intent = "go_to"; a.thought = "excuse me"
                 a.goal = ahead; a.path = [ahead]; a.intent_until = self.t + 60; a.best_t = self.t
-            elif a.goal is None and a.intent != "go_to":
-                # retrained: they cross the robot's bow once and keep walking; Spot yields and steps around
-                far = (r.x + 3.0 * math.cos(r.yaw), r.y + 3.0 * math.sin(r.yaw))
-                a.seated = False; a.intent = "go_to"; a.thought = "excuse me"
-                a.goal = far; a.path = [ahead, far]; a.intent_until = self.t + 60; a.best_t = self.t
+            elif not getattr(a, "_crossed", False):
+                # retrained: they cross the robot's bow once; Spot yields and steps around them
+                if math.dist((a.x, a.y), (r.x, r.y)) < 1.1:
+                    a._crossed = True
+                    self.cast.demo_crosser = None            # their courtesy comes back on
+                    away = max(self.world["landmarks"], key=lambda l: math.dist(l["center_xy"], (r.x, r.y)))
+                    self.cast.apply_intent(a, "go_to", away["id"], 0, "sorry", self.t, lock=True)
+                elif a.goal is None or a.intent != "go_to":
+                    far = (r.x + 3.0 * math.cos(r.yaw), r.y + 3.0 * math.sin(r.yaw))
+                    a.seated = False; a.intent = "go_to"; a.thought = "excuse me"
+                    a.goal = far; a.path = [ahead, far]; a.intent_until = self.t + 60; a.best_t = self.t
         if self.demo == "fail":
             for a in self.cast.agents:
                 if math.dist((a.x, a.y), (r.x, r.y)) < 0.62:

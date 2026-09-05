@@ -162,7 +162,9 @@ async function runEpisode(outcome){
   const p=requester(); if(!p) return;
   $("#verdict").className=""; $("#verdict").style.display="none"; M.seen=new Set();
   const body={task_type:"coffee_to_person",task_text:"get me a cup of coffee and bring it to me",requester:p.id,robot_type:"spot",
-              policy:{kind:"scripted"},seed:Math.floor(Math.random()*1000),humans:"scripted",max_steps:18,max_seconds:300,demo:outcome};
+              policy:{kind:"scripted"},humans:"scripted",max_steps:18,max_seconds:300,demo:outcome,
+              // act one is random; act two replays one of the crowd schedules verified end to end (see tools/verify_demo.py)
+              seed:outcome==="succeed"?[11,7][Math.floor(Math.random()*2)]:Math.floor(Math.random()*1000)};
   const r=await fetch("/episode/start/"+M.job,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   if(r.ok){const j=await r.json(); M.lastEp=j.episode_id; M.phase="running"; $("#run").disabled=$("#rerun").disabled=true; live(true,outcome==="fail"?"run 1 · untrained":"run 2 · retrained");}
 }

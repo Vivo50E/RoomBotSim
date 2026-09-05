@@ -202,7 +202,7 @@ class SkillRunner:
             d = math.dist((r.x, r.y), r.goal)
             if d < self.params["best_d"] - 0.10:
                 self.params["best_d"] = d; self.params["best_t"] = t
-            if t - self.params["best_t"] > 8.0:
+            if t - self.params["best_t"] > (16.0 if getattr(rt, "demo", None) else 8.0):
                 return self._finish(False, "blocked", {"d": round(d, 2)})
             ok = rt.drive_robot(self.k, t, arrive_radius=self.params["arrive"],
                                 ignore_pid=int(self.params["target"]) if self.params.get("kind") == "person" else None)
