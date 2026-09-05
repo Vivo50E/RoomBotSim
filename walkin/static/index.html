@@ -265,7 +265,7 @@ function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=
   window.__setFollow=v=>{follow=v;}; window.__setCam=(x,y,z,tx,ty,tz)=>{follow=false; eye.set(x,y,z); camYaw=Math.atan2(ty-y,tx-x); camPitch=Math.atan2(tz-z,Math.hypot(tx-x,ty-y)); look();};}
 function flyCamera(){const now=performance.now(), dt=Math.min(.05,(now-flyLast)/1000); flyLast=now; if(!flyKeys.size)return;
   const speed=(flyKeys.has("shift")?7:2.2)*dt, f=new THREE.Vector3(Math.cos(camYaw),Math.sin(camYaw),0), right=new THREE.Vector3(-Math.sin(camYaw),Math.cos(camYaw),0);
-  if(flyKeys.has("w"))eye.addScaledVector(f,speed); if(flyKeys.has("s"))eye.addScaledVector(f,-speed); if(flyKeys.has("d"))eye.addScaledVector(right,speed); if(flyKeys.has("a"))eye.addScaledVector(right,-speed); if(flyKeys.has("e"))eye.z+=speed; if(flyKeys.has("q"))eye.z=Math.max(.25,eye.z-speed); look();}
+  if(flyKeys.has("w"))eye.addScaledVector(f,speed); if(flyKeys.has("s"))eye.addScaledVector(f,-speed); if(flyKeys.has("d"))eye.addScaledVector(right,-speed); if(flyKeys.has("a"))eye.addScaledVector(right,speed); if(flyKeys.has("e"))eye.z+=speed; if(flyKeys.has("q"))eye.z=Math.max(.25,eye.z-speed); look();}
 function resizeThree(){if(!renderer)return; const h=$("#view"); renderer.setSize(h.clientWidth,h.clientHeight); cam.aspect=h.clientWidth/h.clientHeight; cam.updateProjectionMatrix();}
 
 /* people: stylised humanoid figures, one height each, posed seated or standing, legs swing when they walk */
