@@ -171,7 +171,7 @@ def on_what(world, obj, half_h):
     return None
 
 
-def _surface_candidates(world, lm, res=0.05):
+def surface_candidates(world, lm, res=0.05):
     """Points inside a landmark footprint that actually have a box under them at graspable height."""
     cx, cy = lm["center_xy"]; sx, sy = lm["size_xy"]
     out = []
@@ -184,6 +184,11 @@ def _surface_candidates(world, lm, res=0.05):
             if 0.35 <= h <= 1.35:                 # table and counter height, not the floor or a wall
                 out.append((x, y, h))
     return out
+
+
+# Kept as a private alias for scripts written before surface placement became part
+# of the skill runner's public contract.
+_surface_candidates = surface_candidates
 
 
 def spawn_objects(world):
@@ -202,7 +207,7 @@ def spawn_objects(world):
                                         -l["size_xy"][0] * l["size_xy"][1]))
     best = None
     for lm in ranked:
-        cand = _surface_candidates(world, lm)
+        cand = surface_candidates(world, lm)
         if not cand:
             continue
         c = np.array(lm["center_xy"], float)
@@ -219,7 +224,7 @@ def spawn_objects(world):
         if obs:
             o = max(obs, key=lambda o: o["size_xy"][0] * o["size_xy"][1])
             fake = dict(center_xy=o["center_xy"], size_xy=o["size_xy"], label="surface")
-            cand = _surface_candidates(world, fake)
+            cand = surface_candidates(world, fake)
             if cand:
                 best = (fake, cand)
     if best is None:

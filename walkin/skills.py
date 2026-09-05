@@ -3,7 +3,7 @@ when it finishes. The base is held still during every manipulation skill."""
 import math, logging
 import numpy as np
 from planning import wrap
-from sim import OBJECTS, surface_top, on_what
+from sim import OBJECTS, surface_top, on_what, surface_candidates
 
 log = logging.getLogger("skills")
 
@@ -109,6 +109,31 @@ class SkillRunner:
         v = v / n if n > 1e-6 else np.array([1.0, 0.0])
         return (ox + v[0] * 0.7, oy + v[1] * 0.7)
 
+    def _landmark_surface(self, lm, require_reach=False):
+        """Return a real tabletop/countertop point associated with *lm*.
+
+        A vision landmark is only a loose 2-D box.  In the coffee-room demo the
+        table label covers a large region, so its centre is open floor while the
+        actual table is near one edge.  Manipulation must target obstacle
+        geometry, not that label centre.
+        """
+        rt = self.rt; r = rt.robots[self.k]
+        candidates = surface_candidates(rt.world, lm, res=0.15)
+        best, best_score = None, float("inf")
+        for x, y, _ in candidates:
+            d, dth, lateral, _, in_reach = reach_geometry(r.x, r.y, r.yaw, x, y)
+            if require_reach:
+                if not in_reach:
+                    continue
+                # Prefer a centred, comfortably extended arm rather than a
+                # point which is merely inside the reach envelope.
+                score = abs(d - 0.70) + 2.0 * abs(lateral) + 0.10 * abs(dth)
+            else:
+                score = math.hypot(x - r.x, y - r.y)
+            if score < best_score:
+                best, best_score = (float(x), float(y)), score
+        return best
+
     def _target_xy(self, target):
         rt = self.rt
         r = rt.robots[self.k]
@@ -131,7 +156,18 @@ class SkillRunner:
 
     def _setup_navigate(self, target, t):
         rt = self.rt
-        xy, kind = self._target_xy(target)
+        focus = None
+        if isinstance(target, str) and target in rt.landmarks:
+            # Use a real support surface for manipulation landmarks.  Doors and
+            # other labels have no candidate and retain the normal box-centre
+            # navigation behaviour.
+            focus = self._landmark_surface(rt.landmarks[target])
+            if focus is not None:
+                xy, kind = self._standoff(*focus), "landmark"
+            else:
+                xy, kind = self._target_xy(target)
+        else:
+            xy, kind = self._target_xy(target)
         if xy is None:
             self.phase = None
             self.result = {"ok": False, "reason": "unknown_target", "detail": {"target": target}}
@@ -143,7 +179,7 @@ class SkillRunner:
         r.follow = int(target) if kind == "person" else None
         r.path = []
         r.last_plan = -1
-        self.params = dict(target=target, kind=kind, best_d=1e9, best_t=t,
+        self.params = dict(target=target, kind=kind, focus=focus, best_d=1e9, best_t=t,
                            arrive=0.85 if kind == "person" else 0.20)
 
     def _face_target(self, t):
@@ -155,7 +191,7 @@ class SkillRunner:
             if tgt in rt.objects_by_id():
                 o = rt.sim.object_pose(tgt); fx, fy = o["x"], o["y"]
             else:
-                fx, fy = rt.landmarks[tgt]["center_xy"]
+                fx, fy = self.params.get("focus") or rt.landmarks[tgt]["center_xy"]
         elif self.params.get("kind") == "person":
             a = rt.cast.by_id[int(self.params["target"])]; fx, fy = a.x, a.y
         else:
@@ -284,12 +320,15 @@ class SkillRunner:
                 self.params = dict(kind="person", pid=int(target), reach=0.35)
             elif isinstance(target, str) and target in rt.landmarks:
                 lm = rt.landmarks[target]
-                c = np.array(lm["center_xy"], float); sx, sy = lm["size_xy"]
-                dx = max(abs(r.x - c[0]) - sx / 2, 0.0); dy = max(abs(r.y - c[1]) - sy / 2, 0.0)
-                de = math.hypot(dx, dy)
-                if de > 0.95:
-                    return self._finish(False, "too_far", {"d": round(de, 2)})
-                self.params = dict(kind="landmark", lm=target, reach=clamp(de + 0.10 - 0.40, 0.0, 0.55))
+                anchor = self._landmark_surface(lm, require_reach=True)
+                if anchor is None:
+                    return self._finish(False, "no_reachable_surface", {"target": target})
+                d, dth, lateral, reach, _ = reach_geometry(r.x, r.y, r.yaw, *anchor)
+                bad = precondition_reach(d, dth, lateral)
+                if bad:
+                    return self._finish(False, bad, {"d": round(d, 2),
+                                                       "yaw_err_deg": round(math.degrees(dth), 1)})
+                self.params = dict(kind="landmark", lm=target, anchor=anchor, reach=reach)
             else:
                 return self._finish(False, "unknown_target", {"target": target})
             self.phase = "extend"; self.tp = t

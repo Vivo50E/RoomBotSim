@@ -79,6 +79,8 @@ for i in range(int(320/0.01)):
 rec = next((e for e in epmod.list_episodes(d) if e["episode_id"] == eid), None)
 check("the coffee task completes end to end", bool(rec and rec["success"]),
       f'{rec["n_steps"]} steps, tags {rec["tags"]}' if rec else "no record")
+check("returning the pot does not drop it", bool(rec and "dropped" not in rec["tags"]),
+      str(rec["tags"]) if rec else "no record")
 
 print(f"\n{len(OK)} passed, {len(BAD)} failed")
 if BAD: print("failed:", BAD)

@@ -33,12 +33,12 @@ from the 12 verified ones and act one's at random, so a judge will not see it. I
 robustness gap: with people wandering in a 10 × 12 m room, the robot sometimes cannot get a clean run at
 the requester. Sweep: `python - <<…` in the git log for "Sweep seeds for the retrained act".
 
-## 4. "place(pot) → FAIL dropped" every run
+## 4. "place(pot) → FAIL dropped" every run — resolved
 
-Setting the pot back on the high table fails: the surface under the hand at release is not the table
-top, so the pot falls. The task survives (the cup is what matters) but it reads as clumsy and adds a
-`dropped` tag to every episode, which pollutes the failure histogram. Likely the standoff stance for a
-landmark leaves the hand short of the table edge; `skills.py` place → `surface_top(hand_xy)`.
+Fixed 5 September: a labelled landmark can be much larger than the physical surface it names, so the
+old navigator faced its empty geometric centre and released over the floor. Navigation and placement
+now select a real, arm-reachable obstacle surface within the landmark. `tools/verify_demo.py coffee`
+now reports `place pot -> ok placed`, with no `dropped` episode tag.
 
 ## 5. Splat clean-up is a blunt filter
 
