@@ -87,7 +87,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
   <div id="view"></div>
   <div id="poster"><div class="label">Walk·In</div><div id="postertxt" class="dim">Loading the room</div><button id="load" class="act">Open the coffee room</button></div>
 
-  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span></div>
+  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><span class="label" id="dbg"></span></div>
   <div class="hud" id="live"><span class="dot" id="dot"></span><span class="label" id="livetxt">idle</span></div>
 
   <div class="hud scrim" id="task">
@@ -116,7 +116,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
   </div>
 </div>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
 <script type="module">
 import * as THREE from "three";
 const $=s=>document.querySelector(s), arr=v=>Array.isArray(v)?v:[];
@@ -142,8 +142,8 @@ function openWS(){
     if(m.type==="snapshot"){M.world=m.world;M.people=arr(m.people&&m.people.people);
       $("#poster").style.display="none"; initThree(); fitTop(); drawCast(); setTask();
       for(const el of[$("#task"),$("#side"),$("#director"),$("#mapwrap")]) el.classList.add("fade");
-      live(true,"live"); send({type:"drop_robot",robot_type:"spot"});}
-    else if(m.type==="state"){M.state=m; appendEvents(arr(m.events)); updateThree(m); drawTop(); updateCast(); onEpisode(m.episode); live(!m.paused,m.paused?"paused":"live");}
+      live(true,"live"); setTimeout(()=>{ if(!(M.state&&arr(M.state.robots).length)) send({type:"drop_robot",robot_type:"spot"}); },400);}
+    else if(m.type==="state"){M.state=m; $("#drop").disabled=arr(m.robots).length>0; appendEvents(arr(m.events)); updateThree(m); drawTop(); updateCast(); onEpisode(m.episode); live(!m.paused,m.paused?"paused":"live");}
   };
   ws.onclose=()=>{live(false,"connection lost");};
 }
@@ -238,62 +238,95 @@ function drawTop(){if(!M.world)return; const W=top.clientWidth,H=top.clientHeigh
 top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({type:"goal",robot:"robot_1",x,y});});
 
 /* ---------- three ---------- */
-let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye;
+let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0;
+const dbg=t=>{const e=$("#dbg"); if(e) e.textContent=t;};
 function initThree(){const host=$("#view"); host.innerHTML="";
-  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(host.clientWidth,host.clientHeight); host.appendChild(renderer.domElement);
+  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; host.appendChild(renderer.domElement);
   scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0c12);
-  cam=new THREE.PerspectiveCamera(62,host.clientWidth/host.clientHeight,.05,150); cam.up.set(0,0,1);
-  const cx=OX+NX*RES/2, cy=OY+NY*RES/2; eye=new THREE.Vector3(cx-Math.max(4,NX*RES*.45),cy-Math.max(3,NY*RES*.35),2.4);
-  camYaw=Math.atan2(cy-eye.y,cx-eye.x); camPitch=-0.22; look();
-  scene.add(new THREE.HemisphereLight(0xdfe8f5,0x1a2028,1.05)); const dl=new THREE.DirectionalLight(0xffffff,.5); dl.position.set(3,4,8); scene.add(dl);
-  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshStandardMaterial({color:0x151823,roughness:1})));
-  boxGroup=new THREE.Group(); boxGroup.visible=!M.world.splat_url;
-  for(const o of arr(M.world.obstacles)){const m=new THREE.Mesh(new THREE.BoxGeometry(o.size_xy[0],o.size_xy[1],o.height_m),new THREE.MeshStandardMaterial({color:0x5b6480,transparent:true,opacity:.42})); m.position.set(o.center_xy[0],o.center_xy[1],o.height_m/2); boxGroup.add(m);} scene.add(boxGroup);
+  cam=new THREE.PerspectiveCamera(58,host.clientWidth/host.clientHeight,.05,200); cam.up.set(0,0,1);
+  const cx=OX+NX*RES/2, cy=OY+NY*RES/2; eye=new THREE.Vector3(cx-5.5,cy-4.5,1.75); camYaw=Math.atan2(cy-eye.y,cx-eye.x); camPitch=-0.14; look();
+  scene.add(new THREE.HemisphereLight(0xe8eef8,0x20242c,1.15)); const dl=new THREE.DirectionalLight(0xffffff,.6); dl.position.set(3,4,8); scene.add(dl);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x14171f,roughness:1})); floor.position.z=-0.01; scene.add(floor);
+  boxGroup=new THREE.Group(); boxGroup.visible=false;
+  for(const o of arr(M.world.obstacles)){const m=new THREE.Mesh(new THREE.BoxGeometry(o.size_xy[0],o.size_xy[1],o.height_m),new THREE.MeshStandardMaterial({color:0x5b6480,transparent:true,opacity:.35})); m.position.set(o.center_xy[0],o.center_xy[1],o.height_m/2); boxGroup.add(m);} scene.add(boxGroup);
   meshes={}; M.people.forEach(p=>{const m=personMesh(p); meshes["p"+p.id]=m; scene.add(m); if(crops[p.id]) applyCrop(m,crops[p.id]);});
-  ["cup","pot"].forEach(id=>{const r=id==="cup"?.04:.07,h=id==="cup"?.1:.2; const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,16),new THREE.MeshStandardMaterial({color:id==="cup"?0xEAEAEA:0x26262A})); m.rotation.x=Math.PI/2; m.visible=false; meshes["o"+id]=m; scene.add(m);});
-  goalRing=new THREE.Mesh(new THREE.TorusGeometry(.25,.02,8,24),new THREE.MeshBasicMaterial({color:0x5fd3ee})); goalRing.visible=false; scene.add(goalRing);
-  pathLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x5fd3ee})); scene.add(pathLine);
+  ["cup","pot"].forEach(id=>{const r=id==="cup"?.04:.07,h=id==="cup"?.1:.2; const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r*.9,h,20),new THREE.MeshStandardMaterial({color:id==="cup"?0xF2F0EA:0x26262A,roughness:.5,metalness:id==="cup"?0:.3})); m.rotation.x=Math.PI/2; m.visible=false; meshes["o"+id]=m; scene.add(m);});
+  goalRing=new THREE.Mesh(new THREE.TorusGeometry(.25,.015,8,32),new THREE.MeshBasicMaterial({color:0x5fd3ee})); goalRing.visible=false; scene.add(goalRing);
+  pathLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x5fd3ee,transparent:true,opacity:.7})); scene.add(pathLine);
   bindOrbit(); loadBackdrop(); animate();}
 function look(){cam.position.copy(eye); cam.lookAt(eye.x+Math.cos(camPitch)*Math.cos(camYaw),eye.y+Math.cos(camPitch)*Math.sin(camYaw),eye.z+Math.sin(camPitch));}
-function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=e=>{d=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId);}; el.onpointerup=()=>d=null;
+function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=e=>{d=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId);followPause=performance.now()+8000;}; el.onpointerup=()=>d=null;
   el.onpointermove=e=>{if(!d)return; camYaw-=(e.clientX-d[0])*.004; camPitch=Math.max(-1.2,Math.min(1.2,camPitch+(e.clientY-d[1])*.004)); d=[e.clientX,e.clientY]; look();};
-  el.onwheel=e=>{e.preventDefault(); const s=e.deltaY>0?-.5:.5; eye.x+=s*Math.cos(camPitch)*Math.cos(camYaw); eye.y+=s*Math.cos(camPitch)*Math.sin(camYaw); eye.z=Math.max(.5,eye.z+s*Math.sin(camPitch)); look();};}
+  el.onwheel=e=>{e.preventDefault(); followPause=performance.now()+8000; const s=e.deltaY>0?-.5:.5; eye.x+=s*Math.cos(camPitch)*Math.cos(camYaw); eye.y+=s*Math.cos(camPitch)*Math.sin(camYaw); eye.z=Math.max(.4,eye.z+s*Math.sin(camPitch)); look();};
+  addEventListener("keydown",e=>{if(e.key==="c") follow=!follow;});}
 function resizeThree(){if(!renderer)return; const h=$("#view"); renderer.setSize(h.clientWidth,h.clientHeight); cam.aspect=h.clientWidth/h.clientHeight; cam.updateProjectionMatrix();}
 
-/* people: capsule body scaled to a per-person height, with the actual photo crop stood up on it */
-function heightOf(p){const seeds=[1.62,1.78,1.70,1.85,1.66,1.74]; return seeds[(p.id-1)%6];}
-function personMesh(p){const gp=new THREE.Group(); const H=heightOf(p), seated=p.posture==="seated"; const h=seated?H*.72:H;
-  const mat=new THREE.MeshStandardMaterial({color:new THREE.Color(colorOf(p.id)).multiplyScalar(.55),roughness:.85});
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.20,h-.62,4,12),mat); body.rotation.x=Math.PI/2; body.position.z=h/2; gp.add(body);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshStandardMaterial({color:0xd8c4b0,roughness:.9})); head.position.z=h-.05; gp.add(head);
-  const bb=new THREE.Mesh(new THREE.PlaneGeometry(.62,h*.98),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide})); bb.position.z=h*.5; bb.name="crop"; gp.add(bb);
-  const sp=labelSprite(String(p.id),colorOf(p.id)); sp.position.z=h+.25; gp.add(sp); gp.userData.h=h; return gp;}
-function applyCrop(gp,c){const bb=gp.getObjectByName("crop"); if(!bb)return; const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; bb.material.map=tex; bb.material.opacity=.96; bb.material.needsUpdate=true;
-  const ar=c.width/Math.max(c.height,1); const h=gp.userData.h*.98; bb.geometry.dispose(); bb.geometry=new THREE.PlaneGeometry(h*ar,h);}
+/* people: the real person, cut from the photo they were seen in, standing at their own height */
+function heightOf(p){return [1.64,1.78,1.71,1.86,1.68,1.75][(p.id-1)%6];}
+function personMesh(p){const gp=new THREE.Group(); const H=heightOf(p), h=p.posture==="seated"?H*.78:H; gp.userData.h=h;
+  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.30,24),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.42,depthWrite:false})); shadow.position.z=.012; gp.add(shadow);
+  const ph=new THREE.Sprite(new THREE.SpriteMaterial({color:0x3a3f4d,transparent:true,opacity:.55,depthWrite:false})); ph.scale.set(.55,h,1); ph.position.z=h/2; ph.name="cut"; gp.add(ph);
+  const tag=labelSprite(String(p.id),colorOf(p.id)); tag.position.z=h+.22; gp.add(tag); return gp;}
+function applyCrop(gp,c){const cut=gp.getObjectByName("cut"); if(!cut)return; const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.minFilter=THREE.LinearFilter;
+  cut.material.map=tex; cut.material.color.set(0xffffff); cut.material.opacity=1; cut.material.needsUpdate=true; const h=gp.userData.h, ar=c.width/Math.max(c.height,1); cut.scale.set(h*ar,h,1); cut.position.z=h/2;}
 function labelSprite(txt,col){const c=document.createElement("canvas"); c.width=c.height=64; const x=c.getContext("2d"); x.fillStyle="rgba(11,12,18,.85)"; x.beginPath(); x.arc(32,32,26,0,7); x.fill(); x.strokeStyle=col; x.lineWidth=3; x.stroke(); x.fillStyle="#e8eaf2"; x.font="600 28px Inter"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt,32,33);
-  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false})); s.scale.set(.26,.26,1); return s;}
-function robotMesh(){const gp=new THREE.Group(); const shell=new THREE.MeshStandardMaterial({color:0xFCBF1E,roughness:.55,metalness:.15}), dark=new THREE.MeshStandardMaterial({color:0x1d1f26,roughness:.7});
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.60,.32,.18),shell); body.position.z=.60; gp.add(body);
-  [[.30],[-.30]].forEach(([sx])=>{const hip=new THREE.Mesh(new THREE.BoxGeometry(.14,.38,.14),dark); hip.position.set(sx,0,.58); gp.add(hip);});
-  [[.36,.17],[.36,-.17],[-.36,.17],[-.36,-.17]].forEach(([sx,sy])=>{const u=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.22,3,8),dark); u.position.set(sx-.03,sy,.42); u.rotation.y=.25; gp.add(u); const l=new THREE.Mesh(new THREE.CapsuleGeometry(.033,.24,3,8),dark); l.position.set(sx-.02,sy,.18); l.rotation.y=-.2; gp.add(l);});
-  const head=new THREE.Mesh(new THREE.BoxGeometry(.16,.22,.12),shell); head.position.set(.36,0,.66); gp.add(head);
-  const eyeb=new THREE.Mesh(new THREE.BoxGeometry(.02,.16,.07),new THREE.MeshStandardMaterial({color:0x1AA0E6,emissive:0x0a4c72})); eyeb.position.set(.45,0,.66); gp.add(eyeb);
-  const mast=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.60,10),shell); mast.rotation.x=Math.PI/2; mast.position.set(-.12,0,.92); gp.add(mast);
-  const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.03,.30,3,8),new THREE.MeshStandardMaterial({color:0x9AA0AC})); arm.rotation.z=Math.PI/2; arm.position.set(.25,0,1.25); gp.add(arm); return gp;}
-function updateThree(st){if(!scene)return;
-  for(const p of arr(st.people)){const m=meshes["p"+p.id]; if(!m)continue; m.position.set(p.x,p.y,0); m.rotation.z=p.yaw; const bb=m.getObjectByName("crop"); if(bb){bb.lookAt(cam.position.x,cam.position.y,bb.getWorldPosition(new THREE.Vector3()).z); }}
-  for(const r of arr(st.robots)){let m=meshes[r.id]; if(!m){m=robotMesh(); meshes[r.id]=m; scene.add(m);} m.visible=true; m.position.set(r.x,r.y,0); m.rotation.z=r.yaw;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false})); s.scale.set(.24,.24,1); return s;}
+function captionSprite(txt){const c=document.createElement("canvas"); c.width=512; c.height=96; const x=c.getContext("2d"); x.font="500 30px 'IBM Plex Mono',monospace"; const w=x.measureText(txt).width+44;
+  x.fillStyle="rgba(11,12,18,.88)"; x.beginPath(); x.roundRect((512-w)/2,18,w,60,10); x.fill(); x.strokeStyle="rgba(255,180,84,.7)"; x.lineWidth=2; x.stroke(); x.fillStyle="#FFB454"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt,256,48);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true})); s.scale.set(1.6,.3,1); return s;}
+
+/* Spot, to Boston Dynamics' published proportions: 1.10 m long, 0.50 m wide, 0.84 m at the back */
+function robotMesh(){const gp=new THREE.Group(); const shell=new THREE.MeshStandardMaterial({color:0xF6B41B,roughness:.45,metalness:.1}), dark=new THREE.MeshStandardMaterial({color:0x17181d,roughness:.65}), grey=new THREE.MeshStandardMaterial({color:0x8a8f9a,roughness:.5,metalness:.4});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.10,.50,.19),shell); body.position.z=.62; gp.add(body);
+  const belly=new THREE.Mesh(new THREE.BoxGeometry(.80,.34,.10),dark); belly.position.z=.50; gp.add(belly);
+  const face=new THREE.Mesh(new THREE.BoxGeometry(.06,.30,.12),dark); face.position.set(.55,0,.62); gp.add(face);
+  const cams=new THREE.Mesh(new THREE.BoxGeometry(.02,.22,.05),new THREE.MeshStandardMaterial({color:0x1AA0E6,emissive:0x0b4d72})); cams.position.set(.585,0,.64); gp.add(cams);
+  gp.userData.legs=[];
+  [[.36,.26,1],[.36,-.26,-1],[-.36,.26,-1],[-.36,-.26,1]].forEach(([sx,sy,ph])=>{
+    const hip=new THREE.Group(); hip.position.set(sx,sy,.60); gp.add(hip);
+    const hipCap=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.11,14),dark); hipCap.position.y=sy>0?.05:-.05; hip.add(hipCap);
+    const upper=new THREE.Mesh(new THREE.BoxGeometry(.09,.06,.34),shell); upper.position.set(-.05,0,-.16); hip.add(upper);
+    const knee=new THREE.Group(); knee.position.set(-.09,0,-.32); hip.add(knee);
+    const lower=new THREE.Mesh(new THREE.CapsuleGeometry(.03,.28,3,10),dark); lower.rotation.x=Math.PI/2; lower.position.set(.07,0,-.15); lower.rotation.y=-.35; knee.add(lower);
+    const foot=new THREE.Mesh(new THREE.SphereGeometry(.035,10,8),grey); foot.position.set(.13,0,-.30); knee.add(foot);
+    gp.userData.legs.push({hip,knee,ph});});
+  const shoulder=new THREE.Group(); shoulder.position.set(-.30,0,.72); gp.add(shoulder);
+  shoulder.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.10,14),dark),{position:new THREE.Vector3(0,0,.05)}));
+  const upperArm=new THREE.Group(); upperArm.position.set(0,0,.10); shoulder.add(upperArm);
+  const ua=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.42),shell); ua.position.z=.21; upperArm.add(ua);
+  const elbow=new THREE.Group(); elbow.position.z=.42; upperArm.add(elbow);
+  const fa=new THREE.Mesh(new THREE.BoxGeometry(.55,.05,.05),shell); fa.position.x=.275; elbow.add(fa);
+  const wrist=new THREE.Group(); wrist.position.x=.55; elbow.add(wrist);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.14,.09,.06),dark); grip.position.x=.07; wrist.add(grip);
+  gp.userData.arm={shoulder,upperArm,elbow,wrist}; upperArm.rotation.y=-.55; elbow.rotation.y=.95;   // folded, resting on the back
+  const cap=captionSprite("Spot"); cap.position.z=1.35; cap.name="cap"; gp.add(cap); gp.userData.captionText="Spot"; gp.userData.dist=0; return gp;}
+const SKILL_TXT={navigate_to:"walking",pick:"picking up",place:"setting down",pour:"pouring",say:"speaking",done:"done"};
+function animateRobot(m,r,dt){const u=m.userData; const v=r.v||0; u.dist+=v*dt; const sw=Math.min(1,v/.6)*.42;
+  for(const L of u.legs){const ph=u.dist*6.5*L.ph; L.hip.rotation.y=Math.sin(ph)*sw; L.knee.rotation.y=(Math.max(0,-Math.cos(ph))*.5+.2)*Math.min(1,v/.3)*(v>.02?1:0)+.15;}
+  const [reach,tilt]=r.arm||[0,0]; const ext=Math.min(1,reach/.55); u.arm.upperArm.rotation.y=-.55+ext*.75; u.arm.elbow.rotation.y=.95-ext*1.15; u.arm.wrist.rotation.x=(tilt||0);
+  let txt="Spot"; if(r.skill){const s=SKILL_TXT[r.skill]||r.skill; const o=(M.state&&M.state.episode&&M.state.episode.last_action)||{}; txt=r.skill==="navigate_to"?("walking to "+(r.holding?"deliver the "+r.holding:"the "+targetName(r))):(s+(r.holding&&r.skill!=="pour"?" the "+r.holding:r.skill==="pour"?" coffee":""));} else if(r.holding) txt="carrying the "+r.holding;
+  if(txt!==u.captionText){u.captionText=txt; const c=m.getObjectByName("cap"); if(c){m.remove(c);} const n=captionSprite(txt); n.position.z=1.35; n.name="cap"; m.add(n);}}
+function targetName(r){const ep=M.state&&M.state.episode; const la=ep&&ep.last_action; if(!la) return "next spot"; const t=la.target; if(t==null) return "next spot"; if(typeof t==="number"){const p=M.people.find(p=>p.id===t); return p?p.description.split(" ").slice(0,4).join(" "):"person "+t;} const lm=arr(M.world.landmarks).find(l=>l.id===t); return lm?lm.label:String(t);}
+let lastT=performance.now();
+function updateThree(st){if(!scene)return; const now=performance.now(), dt=Math.min(.1,(now-lastT)/1000); lastT=now;
+  for(const p of arr(st.people)){const m=meshes["p"+p.id]; if(m) m.position.set(p.x,p.y,0);}
+  let lead=null;
+  for(const r of arr(st.robots)){let m=meshes[r.id]; if(!m){m=robotMesh(); meshes[r.id]=m; scene.add(m);} m.visible=true; m.position.set(r.x,r.y,0); m.rotation.z=r.yaw; animateRobot(m,r,dt); lead=lead||r;
     if(arr(r.path).length&&pathLine) pathLine.geometry.setFromPoints(r.path.map(p=>new THREE.Vector3(p[0],p[1],.03)));
     if(goalRing){goalRing.visible=!!r.goal; if(r.goal) goalRing.position.set(r.goal[0],r.goal[1],.02);}}
-  for(const o of arr(st.objects)){const m=meshes["o"+o.id]; if(!m)continue; m.visible=true; m.position.set(o.x,o.y,o.z); if(o.id==="cup") m.material.color.set(o.filled?0x6F4A24:0xEAEAEA);}}
-function animate(){requestAnimationFrame(animate); try{renderer&&renderer.render(scene,cam);}catch{}}
+  for(const o of arr(st.objects)){const m=meshes["o"+o.id]; if(!m)continue; m.visible=true; m.position.set(o.x,o.y,o.z); if(o.id==="cup") m.material.color.set(o.filled?0x6F4A24:0xF2F0EA);}
+  if(lead&&follow&&now>followPause){const want=new THREE.Vector3(lead.x-3.4*Math.cos(lead.yaw)+1.2*Math.sin(lead.yaw),lead.y-3.4*Math.sin(lead.yaw)-1.2*Math.cos(lead.yaw),1.85);
+    eye.lerp(want,.035); camYaw+=((Math.atan2(lead.y-eye.y,lead.x-eye.x)-camYaw+Math.PI*3)%(Math.PI*2)-Math.PI)*.06; camPitch+=(-.2-camPitch)*.05; look();}}
+function animate(){requestAnimationFrame(animate); try{renderer&&renderer.render(scene,cam);}catch(e){}}
 async function loadBackdrop(){const w=M.world;
-  if(w.splat_url){try{const spark=await import("https://cdn.jsdelivr.net/npm/@sparkjsdev/spark/dist/spark.module.js"); splat=new spark.SplatMesh({url:w.splat_url}); splat.matrixAutoUpdate=false;
-      if(arr(w.T_atlas_to_sim).length===4) splat.matrix.set(...w.T_atlas_to_sim.flat()); scene.add(splat); return;}
-    catch(e){console.warn("splat unavailable",e); if(boxGroup) boxGroup.visible=true;}}
-  const url=w.photo_a_url; if(url){const tex=new THREE.TextureLoader().load(url); tex.colorSpace=THREE.SRGBColorSpace; const wm=NX*RES,hm=NY*RES,pw=Math.min(wm,9),ph=pw*.75;
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(pw,ph),new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.92,side:THREE.DoubleSide})); pl.position.set(OX+wm/2,OY+hm,ph/2); pl.rotation.x=Math.PI/2; scene.add(pl); if(boxGroup) boxGroup.visible=true;}}
-let flip=0; addEventListener("keydown",e=>{if(e.key!=="f"||!splat)return; flip=(flip+1)%4; const s=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]][flip]; const F=new THREE.Matrix4().makeScale(...s); const T=new THREE.Matrix4(); if(arr(M.world.T_atlas_to_sim).length===4)T.set(...M.world.T_atlas_to_sim.flat()); splat.matrix.multiplyMatrices(T,F);});
+  if(!w.splat_url){dbg("no splat for this room"); boxGroup.visible=true; return;}
+  dbg("loading the room…");
+  try{const spark=await import("https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js");
+    splat=new spark.SplatMesh({url:w.splat_url, onLoad:()=>dbg("")}); splat.matrixAutoUpdate=false;
+    if(arr(w.T_atlas_to_sim).length===4) splat.matrix.set(...w.T_atlas_to_sim.flat());
+    scene.add(splat); setTimeout(()=>{ if($("#dbg").textContent==="loading the room…") dbg(""); },12000);}
+  catch(e){console.error("splat failed",e); dbg("room view unavailable: "+String(e).slice(0,60)); boxGroup.visible=true;}}
+let flip=0; addEventListener("keydown",e=>{if(e.key!=="f"||!splat)return; flip=(flip+1)%4; const s=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]][flip]; const F=new THREE.Matrix4().makeScale(...s); const T=new THREE.Matrix4(); if(arr(M.world.T_atlas_to_sim).length===4)T.set(...M.world.T_atlas_to_sim.flat()); splat.matrix.multiplyMatrices(T,F); dbg("splat flip "+flip);});
 boot();
 </script>
 </body>

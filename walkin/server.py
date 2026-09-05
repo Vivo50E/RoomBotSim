@@ -1068,7 +1068,10 @@ class Runtime:
                               "yaw": round(r.yaw, 3), "v": round(r.v, 2),
                               "goal": list(r.goal) if r.goal else None,
                               "path": [[round(p[0], 2), round(p[1], 2)] for p in r.path],
-                              "holding": r.holding}
+                              "holding": r.holding,
+                              "arm": [round(v, 3) for v in self.sim.arm_state(r.k)],
+                              "skill": (self.runner[r.k].action or {}).get("action") if self.runner[r.k].busy else None,
+                              "phase": self.runner[r.k].phase}
                              for r in self.robots.values() if r.active],
                   "people": [{"id": a.id, "x": round(a.x, 3), "y": round(a.y, 3), "yaw": round(a.yaw, 3),
                               "seated": bool(a.seated), "activity": a.activity, "thought": a.thought}
