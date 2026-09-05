@@ -93,7 +93,12 @@ def detect_people(photo_paths, photos):
         except Exception:
             sizes[name] = (1024.0, 1024.0)
     prompt = PEOPLE_PROMPT.replace("{n}", str(len(photos))).replace("{names}", _names(photos))
-    d = ask_json(vlm_model(), prompt, photo_paths, max_tokens=1600)
+    # seven photos x six people x a per-photo box dict is ~4k tokens of JSON; 1600 truncated it mid-object
+    try:
+        d = ask_json(vlm_model(), prompt, photo_paths, max_tokens=4000)
+    except Exception as e:
+        log.warning("people call failed once (%s), retrying", str(e)[:80])
+        d = ask_json(vlm_model(), prompt, photo_paths, max_tokens=4000)
     raw = d.get("people", [])[:6]
     old_to_new = {}
     people = []

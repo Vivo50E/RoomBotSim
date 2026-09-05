@@ -44,6 +44,17 @@ def main():
             log("re-detection failed:", str(e)[:200])
     log(f"{len(pts):,} points, {len(people_raw)} people, {len(fixtures)} fixtures")
 
+    # Marble extrapolates floor and walls well past the real room; on this cafe it drew 21 x 24 m of
+    # mostly empty space around ~7 x 9 m of actual furniture. Crop to the furniture core plus a margin,
+    # capped near the operator's own estimate of the room, so the grid is the room and not the guess.
+    band = pts[(pts[:, 2] > 0.25) & (pts[:, 2] < 1.9)]
+    lo = np.percentile(band[:, :2], 4, axis=0); hi = np.percentile(band[:, :2], 96, axis=0)
+    mid = (lo + hi) / 2; half = (hi - lo) / 2 + float(os.environ.get("BAKE_MARGIN", "2.2"))
+    cap = np.array([float(v) for v in os.environ.get("BAKE_MAX_ROOM", "15x12").split("x")]) / 2
+    half = np.minimum(half, cap)
+    keep = np.all(np.abs(pts[:, :2] - mid) <= half, axis=1)
+    log(f"cropping {len(pts):,} -> {keep.sum():,} points to a {2*half[0]:.1f} x {2*half[1]:.1f} m room")
+    pts = pts[keep]
     grid = G.build_grid(pts)
     nx, ny = grid["size_cells"]; ox, oy = grid["origin_xy"]
     room_center = (ox + nx * RES / 2, oy + ny * RES / 2)
