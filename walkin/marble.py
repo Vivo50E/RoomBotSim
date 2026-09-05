@@ -109,7 +109,8 @@ def generate_multi_image(asset_ids, azimuths=None, model=None, seed=None, displa
 
 
 def generate_single_image(asset_id, model=None, seed=None, display_name="walk-in view"):
-    body = {"world_prompt": {"type": "image", "image_prompt": _content(asset_id=asset_id), "is_pano": "false"},
+    # is_pano takes the JSON literals 'auto', true or false. Sending the string "false" is a 422.
+    body = {"world_prompt": {"type": "image", "image_prompt": _content(asset_id=asset_id), "is_pano": False},
             "model": model or os.environ.get("MARBLE_CROSS_MODEL", "marble-1.0-draft"),
             "display_name": display_name[:64], "permission": {"public": False}}
     if seed is not None:
@@ -188,8 +189,16 @@ def semantics_of(world):
     return float(sm.get("metric_scale_factor") or 1.0), float(sm.get("ground_plane_offset") or 0.0)
 
 
-def fetch_scene(world_id, out_dir, want_mesh=True, tag=""):
-    """Export + download PLY splats (and the collider mesh) for one world. Returns paths."""
+def fetch_scene(world_id, out_dir, want_mesh=None, tag=""):
+    """Export + download PLY splats (and optionally the collider mesh) for one world.
+
+    Splat PLY export is synchronous and returns in a few seconds. The GLB mesh export is a different,
+    much slower service: measured 5 September, a mesh export on a completed draft world was still
+    IN_PROGRESS after 12 minutes with its updated_at never moving off creation. It is only used as an
+    optional second opinion in fusion.mesh_filter, so it is off unless MARBLE_MESH=1, and capped when on.
+    """
+    if want_mesh is None:
+        want_mesh = os.environ.get("MARBLE_MESH", "0") == "1"
     os.makedirs(out_dir, exist_ok=True)
     pre = f"{tag}_" if tag else ""
     out = {}
@@ -203,7 +212,8 @@ def fetch_scene(world_id, out_dir, want_mesh=True, tag=""):
         log.warning("marble: spz download skipped (%s)", e)
     if want_mesh:
         try:
-            murl = export(world_id, "mesh", "glb", resolution="150k", mesh_variant="vertex_colored")
+            murl = export(world_id, "mesh", "glb", resolution="150k", mesh_variant="vertex_colored",
+                          timeout_s=float(os.environ.get("MARBLE_MESH_TIMEOUT_S", "180")))
             out["mesh"] = download(murl, os.path.join(out_dir, f"{pre}collider.glb"))
         except Exception as e:
             log.warning("marble: mesh export skipped (%s)", e)

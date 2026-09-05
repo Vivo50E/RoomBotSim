@@ -324,6 +324,26 @@ def start_runtime(job_id):
     return j["runtime"]
 
 
+@app.get("/demo")
+def demo_room():
+    """The pre-baked room, ready to run with no photos, no reconstruction and no waiting.
+    Built by tools/bake_demo.py; DEMO_JOB names it."""
+    job = os.environ.get("DEMO_JOB", "coffee")
+    d = os.path.join("jobs", job)
+    if job not in JOBS:
+        if not os.path.exists(os.path.join(d, "world.json")):
+            raise HTTPException(404, f"no baked room at {d}; run tools/bake_demo.py first")
+        import runtime_ops
+        loaded = runtime_ops.load_jobs("jobs")
+        if job not in loaded:
+            raise HTTPException(500, f"baked room at {d} did not load")
+        JOBS[job] = loaded[job]
+    start_runtime(job)
+    j = JOBS[job]
+    return {"job_id": job, "people": len(j["people"]["people"]),
+            "landmarks": [l["label"] for l in j["world"]["landmarks"]]}
+
+
 @app.get("/test")
 def test_room():
     d = os.path.join("jobs", "test")

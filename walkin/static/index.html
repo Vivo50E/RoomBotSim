@@ -249,7 +249,10 @@ $("#mobileBuild").onclick = () => uploadPhotos($("#mobileFiles").files);
 $("#demo").onclick = async () => {
   setStatus("Loading the demo room");
   try {
-    const j = await (await fetch("/test")).json();
+    // the baked room if one exists, otherwise the synthetic fixture
+    let r = await fetch("/demo");
+    if (!r.ok) r = await fetch("/test");
+    const j = await r.json();
     M.job = j.job_id;
     const s = await (await fetch("/status/" + M.job)).json();
     M.world = s.world; M.people = arr(s.people && s.people.people);

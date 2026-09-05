@@ -59,11 +59,19 @@ Every listed person must appear once in "people".
 """
 
 
-def _valid_bbox(b):
+def _valid_bbox(b, wh=None):
+    """The prompt asks for normalized [0,1] boxes, but vision models routinely answer in pixels.
+    Clamping those to [0,1] collapses every box to zero width and silently empties the room, so detect
+    pixel space and divide by the raster instead."""
     try:
-        u0, v0, u1, v1 = [min(max(float(x), 0.0), 1.0) for x in b]
+        u0, v0, u1, v1 = [float(x) for x in b]
     except Exception:
         return None
+    if max(abs(u0), abs(v0), abs(u1), abs(v1)) > 1.5:
+        w, h = wh if wh else (1024.0, 1024.0)
+        u0, u1 = u0 / w, u1 / w
+        v0, v1 = v0 / h, v1 / h
+    u0, v0, u1, v1 = [min(max(v, 0.0), 1.0) for v in (u0, v0, u1, v1)]
     if u1 < u0: u0, u1 = u1, u0
     if v1 < v0: v0, v1 = v1, v0
     if u1 - u0 < 0.02 or v1 - v0 < 0.02: return None
@@ -76,6 +84,14 @@ def _names(photos):
 
 def detect_people(photo_paths, photos):
     """photo_paths in the same order as `photos` (e.g. ["A","B","C","D"]). Returns (people, fixtures)."""
+    from PIL import Image
+    sizes = {}
+    for name, path in zip(photos, photo_paths):
+        try:
+            with Image.open(path) as im:
+                sizes[name] = im.size
+        except Exception:
+            sizes[name] = (1024.0, 1024.0)
     prompt = PEOPLE_PROMPT.replace("{n}", str(len(photos))).replace("{names}", _names(photos))
     d = ask_json(vlm_model(), prompt, photo_paths, max_tokens=1600)
     raw = d.get("people", [])[:6]
@@ -85,9 +101,10 @@ def detect_people(photo_paths, photos):
         boxes = {}
         src = p.get("boxes") if isinstance(p.get("boxes"), dict) else {}
         for ph in photos:
-            b = _valid_bbox(src.get(ph)) if src else None
+            wh = sizes.get(ph)
+            b = _valid_bbox(src.get(ph), wh) if src else None
             if b is None:
-                b = _valid_bbox(p.get(f"bbox_{ph}"))
+                b = _valid_bbox(p.get(f"bbox_{ph}"), wh)
             if b: boxes[ph] = b
         if not boxes: continue
         old_to_new[p.get("id")] = len(people) + 1
@@ -103,7 +120,7 @@ def detect_people(photo_paths, photos):
         p["talking_to"] = t if isinstance(t, int) and t in ids and t != p["id"] else None
     fixtures = []
     for f in d.get("fixtures", []):
-        b = _valid_bbox(f.get("bbox"))
+        b = _valid_bbox(f.get("bbox"), sizes.get(f.get("photo")))
         if b and f.get("label") in ("door", "whiteboard", "window", "tv") and f.get("photo") in photos:
             fixtures.append(dict(label=f["label"], photo=f["photo"], bbox=b))
     return people, fixtures
