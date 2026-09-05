@@ -1,0 +1,14 @@
+# secrets — never commit
+.env
+**/.env
+*.key
+
+# environments and artifacts
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+walkin/jobs/
+sft.jsonl
+.DS_Store

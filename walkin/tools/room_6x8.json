@@ -1,0 +1,16 @@
+{"size_xy": [6.0, 8.0],
+ "boxes": [
+  {"label": "table",      "center_xy": [0.0, 0.5],  "size_xy": [1.8, 0.9], "height_m": 0.75},
+  {"label": "chair",      "center_xy": [-0.6, -0.3], "size_xy": [0.5, 0.5], "height_m": 0.9},
+  {"label": "chair",      "center_xy": [0.6, -0.3],  "size_xy": [0.5, 0.5], "height_m": 0.9},
+  {"label": "chair",      "center_xy": [-0.6, 1.3],  "size_xy": [0.5, 0.5], "height_m": 0.9},
+  {"label": "chair",      "center_xy": [0.6, 1.3],   "size_xy": [0.5, 0.5], "height_m": 0.9},
+  {"label": "couch",      "center_xy": [-2.4, 2.8],  "size_xy": [0.9, 2.0], "height_m": 0.8},
+  {"label": "counter",    "center_xy": [2.2, -3.4],  "size_xy": [1.5, 0.6], "height_m": 0.9},
+  {"label": "whiteboard", "center_xy": [0.0, 3.85],  "size_xy": [1.5, 0.2], "height_m": 1.8},
+  {"label": "door",       "center_xy": [-2.2, -3.85], "size_xy": [0.9, 0.2], "height_m": 0.0}],
+ "people": [
+  {"id": 1, "pos_xy": [-0.6, -0.3], "posture": "seated",   "activity": "typing",  "talking_to": null, "description": "person in a grey hoodie with a laptop", "personality": "focused, hates interruptions"},
+  {"id": 2, "pos_xy": [0.6, -0.3],  "posture": "seated",   "activity": "talking", "talking_to": 3,    "description": "person in a blue shirt", "personality": "chatty, curious about gadgets"},
+  {"id": 3, "pos_xy": [0.6, 1.3],   "posture": "seated",   "activity": "talking", "talking_to": 2,    "description": "person in a black jacket", "personality": "skeptical, dry humor"},
+  {"id": 4, "pos_xy": [-1.6, 2.2],  "posture": "standing", "activity": "idle",    "talking_to": null, "description": "person in a green sweater holding a mug", "personality": "restless, wanders"}]}
