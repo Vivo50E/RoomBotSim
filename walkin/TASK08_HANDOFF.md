@@ -17,4 +17,4 @@
 - isolated batch smoke: `python tools/batch_run.py --jobs-root <tmp> --job test --episodes 1 --task go_to --max-seconds 8` exited 0 with a closed timeout record; invalid `--max-seconds 0` exited 2.
 
 ## Measured performance
-The enforced full-suite case ran **30.10 s wall** and advanced **30.11 s simulated** with exactly **6 people**, **3 active robots**, and a real `websockets.connect` client continuously decoding frames from the actual loopback uvicorn `/ws/{job}` route (threshold: 30 s wall, >=29 s sim). The test received 588 matching state frames. See `WEBSOCKET_PERF_FIX.md`.
+The enforced full-suite case ran **30.10 s wall** and advanced **30.11 s simulated** with exactly **6 people**, **3 active robots**, and a real `websockets.connect` client continuously decoding frames from the actual loopback uvicorn `/ws/{job}` route (threshold: 30 s wall, >=29 s sim). The test received 589 matching state frames. See `WEBSOCKET_PERF_FIX.md`.

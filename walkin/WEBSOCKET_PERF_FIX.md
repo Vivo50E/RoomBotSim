@@ -11,7 +11,7 @@ python tests/run_all.py
 Results: `py_compile` exited 0; the full suite reported **23 passed, 0 failed**. The network performance checks reported:
 
 ```text
-PASS performance: real network WebSocket connects and receives 6-person/3-robot state frames  frames=588 matching=588 errors=[]
+PASS performance: real network WebSocket connects and receives 6-person/3-robot state frames  frames=589 matching=589 errors=[]
 PASS performance: 30 s wall advances >=29 s (6 people, 3 robots, network WebSocket client)  sim=30.11s wall=30.10s
 ```
 

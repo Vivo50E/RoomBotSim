@@ -13,7 +13,8 @@ COLORS = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4"]
 
 def build(out_dir="jobs/test"):
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    room = json.load(open(os.path.join(here, "tools", "room_6x8.json")))
+    with open(os.path.join(here, "tools", "room_6x8.json")) as f:
+        room = json.load(f)
     os.makedirs(out_dir, exist_ok=True)
     rec = _mock(out_dir)
     T = floor_align(rec.points, rec.cameras)
@@ -53,8 +54,10 @@ def build(out_dir="jobs/test"):
                            talking_to=p["talking_to"], pos_xy=[x, y], home_xy=[x, y],
                            facing_deg=math.degrees(math.atan2(fy - y, fx - x)),
                            personality=p["personality"], color=COLORS[p["id"] - 1]))
-    json.dump(world, open(os.path.join(out_dir, "world.json"), "w"))
-    json.dump(dict(people=people), open(os.path.join(out_dir, "people.json"), "w"))
+    with open(os.path.join(out_dir, "world.json"), "w") as f:
+        json.dump(world, f)
+    with open(os.path.join(out_dir, "people.json"), "w") as f:
+        json.dump(dict(people=people), f)
     return world, dict(people=people)
 
 

@@ -1,3 +1,17 @@
+> **Status: superseded, 5 September.** Two corrections to this audit.
+>
+> 1. Its headline FAIL was correct and useful: the performance case really did bypass the WebSocket
+>    route. That has since been fixed — the suite now reserves a loopback port, serves the real app from
+>    a uvicorn thread, and connects with the `websockets` client. Measured 589 state frames over 30.1 s,
+>    every one carrying six people and three robots, no client errors. The suite reports 23 passed.
+> 2. Its evidence section claims "NumPy divide/overflow/invalid-value warnings from `recon.py:179` and
+>    `geometry.py:28,42,43,52`". Those do not reproduce. Running the whole suite under
+>    `-W always::RuntimeWarning` emits no NumPy RuntimeWarning at all, and none of the cited lines
+>    performs a division. The warnings that *were* present were `ResourceWarning` for unclosed file
+>    handles, which is a different thing and has now been fixed at the source.
+>
+> Treat the verdict as historical.
+
 # TASK-07 / TASK-08 independent acceptance audit
 
 Audit date: 2026-09-05. Product source was not edited by this audit.

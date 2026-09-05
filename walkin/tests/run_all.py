@@ -283,13 +283,15 @@ def consume_network_websocket():
     asyncio.run(receive_frames())
 
 client = threading.Thread(target=consume_network_websocket, daemon=True)
+perf_thread = None
 elapsed_sim = elapsed_wall = 0.0
 try:
     if server_ready:
         client.start()
         connected = client_connected.wait(5)
         if connected:
-            perf.start()
+            perf_thread = threading.Thread(target=perf.run, daemon=True)
+            perf_thread.start()
             wall = time.perf_counter()
             time.sleep(30.1)
             elapsed_sim = perf.t
@@ -303,6 +305,8 @@ finally:
     if client.is_alive():
         client.join(3)
     perf.stop = True
+    if perf_thread is not None and perf_thread.is_alive():
+        perf_thread.join(3)
     asgi_server.should_exit = True
     if asgi_thread.is_alive():
         asgi_thread.join(5)

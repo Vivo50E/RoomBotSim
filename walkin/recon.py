@@ -158,7 +158,8 @@ def _marble(image_paths, job_dir, status=None):
 def _mock(job_dir):
     global MOCK_ROOM_TO_ATLAS
     here = os.path.dirname(os.path.abspath(__file__))
-    room = json.load(open(os.path.join(here, "tools", "room_6x8.json")))
+    with open(os.path.join(here, "tools", "room_6x8.json")) as f:
+        room = json.load(f)
     rng = np.random.default_rng(0)
     W, H = room["size_xy"]; pts = []
     n = 40000
