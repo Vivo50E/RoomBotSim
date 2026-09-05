@@ -5,7 +5,7 @@ Usage: python tools/make_sft.py jobs/<job>/episodes --out sft.jsonl [--relabel o
 Failed steps are relabeled with what the oracle would have done from that exact state (DAgger style);
 human demonstrations are their own labels.
 """
-import sys, os, json, glob, argparse
+import sys, os, json, glob, gzip, argparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from policy import SKILL_SYSTEM, oracle
@@ -15,9 +15,15 @@ def build(episodes_dir, out_path, relabel="oracle", only_failures=False, include
     n = 0
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     with open(out_path, "w") as out:
-        for path in sorted(glob.glob(os.path.join(episodes_dir, "*.jsonl"))):
+        # Closed episodes are rotated into episodes/archive/*.jsonl.gz by runtime_ops, so read both.
+        # Globbing only *.jsonl silently drops every archived episode from the training data.
+        paths = sorted(glob.glob(os.path.join(episodes_dir, "*.jsonl")))
+        paths += sorted(glob.glob(os.path.join(episodes_dir, "archive", "*.jsonl.gz")))
+        for path in paths:
             try:
-                lines = [json.loads(l) for l in open(path) if l.strip()]
+                opener = gzip.open if path.endswith(".gz") else open
+                with opener(path, "rt") as f:
+                    lines = [json.loads(l) for l in f if l.strip()]
             except Exception:
                 continue
             if not lines:

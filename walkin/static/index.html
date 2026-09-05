@@ -9,7 +9,7 @@
 <style>
 :root{
   --bg:#0F1319; --panel:#161C25; --panel-2:#1E2731; --line:#2A3542;
-  --ink:#E4E9EF; --ink-dim:#93A1B0; --amber:#FFB454; --good:#7BD88F; --bad:#F2555A; --cyan:#5EC8F2;
+  --ink:#EAF0F6; --ink-dim:#AEBBC9; --amber:#FFB454; --good:#8DE49E; --bad:#FF7378; --cyan:#70D4FA;
   --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
@@ -49,7 +49,7 @@ input[type=file]::file-selector-button{background:var(--panel-2);border:1px soli
 #center{grid-row:2/3;position:relative;background:#0B0E13}
 #view{position:absolute;inset:0}
 #bottom{grid-row:3/4;border-top:1px solid var(--line);background:var(--panel);position:relative}
-#top{width:100%;height:100%;display:block;cursor:crosshair}
+#top{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
 #right{grid-row:2/4;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px}
 
 .sect{font-weight:500;margin:0 0 8px}
@@ -97,10 +97,12 @@ label{display:block;font-size:11px;color:var(--ink-dim);margin:8px 0 3px}
 @keyframes fade{from{opacity:0;transform:translateY(5px)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:700px){
-  #app{display:block}
-  #left,#center,#bottom,#right{display:none}
-  #mobile{display:block}
-  header{display:flex;flex-wrap:wrap;height:auto;padding:10px 14px}
+  html,body{overflow:auto;min-height:100%;background:linear-gradient(150deg,#0F1319,#172431)}
+  #app{display:none} #mobile{display:block;min-height:100vh;padding:28px 20px 36px}
+  .mobile-card{max-width:430px;margin:8vh auto 0;padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 18px 50px #0005}
+  .mobile-card h2{font-size:24px}.mobile-card p{font-size:15px}.mobile-file{display:block;width:100%;margin:18px 0 12px}
+  .mobile-build{width:100%;padding:10px}.handoff{display:flex;gap:14px;align-items:center;margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+  .handoff img{width:82px;height:82px;background:#fff;padding:4px;border-radius:4px}.handoff p{margin:0;font-size:12px}
 }
 </style>
 </head>
@@ -202,8 +204,17 @@ label{display:block;font-size:11px;color:var(--ink-dim);margin:8px 0 3px}
 </div>
 
 <div id="mobile">
-  <h2 style="font-weight:600;margin:0 0 8px">WALK·IN</h2>
-  <p class="dim" id="mobmsg">Pick four photos of the room, one facing each wall, then build the room.</p>
+  <main class="mobile-card" aria-labelledby="mobileTitle">
+    <h2 id="mobileTitle" style="font-weight:600;margin:0 0 8px">WALK<span style="color:var(--amber)">·</span>IN</h2>
+    <p class="dim" id="mobmsg">Upload 2–4 chest-height photos, ideally one facing each wall. Scene review and robot control continue on the laptop.</p>
+    <label class="mobile-file" for="mobileFiles">Room photos</label>
+    <input type="file" id="mobileFiles" accept="image/*" multiple aria-describedby="mobmsg">
+    <button id="mobileBuild" class="primary mobile-build">Upload photos to laptop</button>
+    <div class="handoff">
+      <img src="/static/qr.png" alt="QR code for the WALK-IN laptop console">
+      <p class="dim">After upload, return to the laptop to review the map and run the room. Scan this code only when your phone is on the same network.</p>
+    </div>
+  </main>
 </div>
 
 <script type="importmap">
@@ -217,25 +228,23 @@ const arr = v => Array.isArray(v) ? v : [];
 const PERSON_COLORS = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4"];
 
 const M = {job:null, world:null, people:[], photos:[], boxes:{}, ws:null, state:null,
-           confirmed:false, drag:null, lastEpisode:null, seenSteps:new Set(), running:false};
+           confirmed:false, drag:null, lastEpisode:null, seenSteps:new Set(), logEpisodeId:null, activeHuman:false, running:false};
 
 /* ---------------------------------------------------------------- boot */
-$("#build").onclick = async () => {
-  const fs = $("#files").files;
-  if (fs.length < 2 || fs.length > 4) return setStatus("Pick 2 to 4 photos. Four chest-height views, one per wall, works best.", true);
-  const fd = new FormData();
-  for (const f of fs) fd.append("photos", f);
-  setStatus("Uploading photos");
-  $("#build").disabled = true;
+async function uploadPhotos(fs) {
+  if (!fs || fs.length < 2 || fs.length > 4) return setStatus("Pick 2 to 4 photos. Four chest-height views, one per wall, works best.", true);
+  const fd = new FormData(); for (const f of fs) fd.append("photos", f);
+  setStatus("Uploading photos"); $("#build").disabled = true; $("#mobileBuild").disabled = true;
   try {
     const r = await fetch("/upload", {method:"POST", body:fd});
     if (!r.ok) throw new Error(await r.text());
-    const j = await r.json();
-    M.job = j.job_id; M.photos = j.photos || ["A","B"];
-    $("#mobmsg").textContent = "Photos uploaded. Continue on the laptop.";
+    const j = await r.json(); M.job = j.job_id; M.photos = j.photos || ["A","B"];
+    $("#mobmsg").textContent = "Upload complete. Continue on the laptop while WALK·IN builds your room."; $("#mobmsg").style.color = "";
     poll();
-  } catch (e) { setStatus("Upload failed. " + e.message, true); $("#build").disabled = false; }
-};
+  } catch (e) { setStatus("Upload failed. " + e.message, true); $("#build").disabled = false; $("#mobileBuild").disabled = false; }
+}
+$("#build").onclick = () => uploadPhotos($("#files").files);
+$("#mobileBuild").onclick = () => uploadPhotos($("#mobileFiles").files);
 
 $("#demo").onclick = async () => {
   setStatus("Loading the demo room");
@@ -278,7 +287,16 @@ $("#confirm").onclick = async () => {
   } catch (e) { setStatus("Could not start the run. " + e.message, true); $("#confirm").disabled = false; }
 };
 
-function setStatus(t, bad) { const el = $("#statusline"); el.textContent = t; el.classList.toggle("bad", !!bad); }
+function setStatus(t, bad) {
+  const el = $("#statusline"); el.textContent = t; el.classList.toggle("bad", !!bad);
+  // On a phone the whole desktop grid is display:none, and #statusline lives inside it, so every
+  // message written here would be invisible. Mirror it into the mobile card.
+  const mob = $("#mobmsg");
+  if (mob && matchMedia("(max-width: 700px)").matches) {
+    mob.textContent = t;
+    mob.style.color = bad ? "var(--bad)" : "";
+  }
+}
 function live(on, text) {
   $("#livechip").hidden = !on;
   $("#livedot").classList.toggle("live", !!on);
@@ -386,21 +404,36 @@ function appendEvents(evs) {
 
 /* ---------------------------------------------------------------- top-down map */
 const top = $("#top"), g = top.getContext("2d");
-let S = 40, occ = null, NX = 0, NY = 0, OX = 0, OY = 0, RES = 0.1;
+let S = 40, occ = null, NX = 0, NY = 0, OX = 0, OY = 0, RES = 0.1, MAPX = 0, MAPY = 0;
+const mapPoint = e => { const r = top.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 
+function sizeCanvas() {
+  // A canvas defaults to a blurry 300×150 bitmap. Size it even before a job arrives.
+  const W = top.clientWidth, H = top.clientHeight;
+  if (!W || !H) return null;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+  if (top.width !== pw || top.height !== ph) { top.width = pw; top.height = ph; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [W, H];
+}
 function fitTop() {
-  if (!M.world) return;
+  const dims = sizeCanvas();
+  if (!M.world || !dims) return;
   [NX, NY] = M.world.size_cells; [OX, OY] = M.world.origin_xy; RES = M.world.resolution_m || 0.1;
   try { occ = Uint8Array.from(atob(M.world.occupancy_b64), c => c.charCodeAt(0)); } catch { occ = null; }
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  top.width = top.clientWidth * dpr; top.height = top.clientHeight * dpr;
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  S = Math.min(top.clientWidth / (NX * RES), top.clientHeight / (NY * RES));
+  const [W, H] = dims;
+  if (!NX || !NY || !RES) return;
+  // Fit (rather than crop) the map. Rectangular 7×9 maps, 20 m rooms, and thin corridors retain their extent.
+  S = Math.max(1, Math.min(W / (NX * RES), H / (NY * RES)));
+  MAPX = (W - NX * RES * S) / 2; MAPY = (H - NY * RES * S) / 2;
 }
-addEventListener("resize", () => { fitTop(); drawTop(); resizeThree(); });
+const mapResize = () => { fitTop(); drawTop(); resizeThree(); };
+addEventListener("resize", mapResize);
+new ResizeObserver(mapResize).observe(top);
 
-const toPx = (x, y) => [(x - OX) * S, top.clientHeight - (y - OY) * S];
-const toWorld = (px, py) => [px / S + OX, (top.clientHeight - py) / S + OY];
+const toPx = (x, y) => [MAPX + (x - OX) * S, MAPY + (NY * RES - (y - OY)) * S];
+const toWorld = (px, py) => [(px - MAPX) / S + OX, (NY * RES - (py - MAPY) / S) + OY];
 
 function drawTop() {
   if (!M.world) return;
@@ -456,49 +489,43 @@ function drawTop() {
   }
 }
 
-top.addEventListener("mousedown", e => {
-  if (M.confirmed) return;
-  const [wx, wy] = toWorld(e.offsetX, e.offsetY);
-  let best = null, bd = 0.35;
-  M.people.forEach(p => { const d = Math.hypot(p.pos_xy[0]-wx, p.pos_xy[1]-wy); if (d < bd) { bd = d; best = {kind:"p", o:p}; } });
-  arr(M.world && M.world.landmarks).forEach(l => { const d = Math.hypot(l.center_xy[0]-wx, l.center_xy[1]-wy); if (d < bd) { bd = d; best = {kind:"l", o:l}; } });
-  M.drag = best;
+let dragged = false;
+const clampMap = (x, y) => [Math.max(OX, Math.min(OX + NX * RES, x)), Math.max(OY, Math.min(OY + NY * RES, y))];
+function hitEditable(wx, wy) {
+  // Hit areas are expressed in screen pixels, not metres, so small and 20 m maps behave alike.
+  let best = null, bd = Infinity;
+  M.people.forEach(p => { const d = Math.hypot(p.pos_xy[0]-wx, p.pos_xy[1]-wy); if (d <= Math.max(.30, 12 / S) && d < bd) { bd=d; best={kind:"p",o:p}; } });
+  // A person seated at a table must remain draggable; only test furniture if no person won.
+  if (best) return best;
+  arr(M.world && M.world.landmarks).forEach(l => {
+    const [cx,cy] = l.center_xy, [sx,sy] = l.size_xy;
+    const dx=Math.max(Math.abs(wx-cx)-sx/2,0), dy=Math.max(Math.abs(wy-cy)-sy/2,0), d=Math.hypot(dx,dy);
+    if (d <= Math.max(.15,10/S) && d < bd) { bd=d; best={kind:"l",o:l}; }
+  }); return best;
+}
+top.addEventListener("pointerdown", e => {
+  top.focus(); dragged=false; if (M.confirmed) return;
+  const [px,py]=mapPoint(e), [wx,wy]=toWorld(px,py); M.drag=hitEditable(wx,wy);
+  if (M.drag) top.setPointerCapture(e.pointerId);
 });
-top.addEventListener("mousemove", e => {
-  if (!M.drag) return;
-  const [wx, wy] = toWorld(e.offsetX, e.offsetY);
-  if (M.drag.kind === "p") M.drag.o.pos_xy = [wx, wy]; else M.drag.o.center_xy = [wx, wy];
-  drawTop();
-});
-addEventListener("mouseup", () => { M.drag = null; });
-top.addEventListener("click", e => {
-  if (!M.confirmed || M.drag) return;
-  const [x, y] = toWorld(e.offsetX, e.offsetY);
-  send({type:"goal", robot:"robot_1", x, y});
-});
-top.addEventListener("dblclick", e => {
-  if (M.confirmed) return;
-  const [wx, wy] = toWorld(e.offsetX, e.offsetY);
-  const lm = arr(M.world && M.world.landmarks).find(l => Math.hypot(l.center_xy[0]-wx, l.center_xy[1]-wy) < 0.4);
-  if (!lm) return;
-  const v = prompt("What is this?", lm.label);
-  if (v) { lm.label = v.trim(); drawTop(); fillSelects(); }
-});
+top.addEventListener("pointermove", e => { if (!M.drag) return; const [px,py]=mapPoint(e); let [wx,wy]=toWorld(px,py);
+  [wx,wy] = clampMap(wx, wy); dragged=true; if (M.drag.kind === "p") M.drag.o.pos_xy=[wx,wy]; else M.drag.o.center_xy=[wx,wy]; drawTop(); });
+function finishDrag(e) { const had=!!M.drag; M.drag=null; if (had) { e.preventDefault(); setTimeout(()=>dragged=false,0); } }
+top.addEventListener("pointerup", finishDrag);
+top.addEventListener("pointercancel", finishDrag);
+top.addEventListener("click", e => { if (!M.confirmed || dragged) return; const [px,py]=mapPoint(e), [x,y]=toWorld(px,py); send({type:"goal",robot:"robot_1",x,y}); });
+top.addEventListener("dblclick", e => { if (M.confirmed) return; const [px,py]=mapPoint(e), [wx,wy]=toWorld(px,py); const hit=hitEditable(wx,wy); const lm=hit && hit.kind === "l" && hit.o;
+  if (!lm) return; const v=prompt("What is this?",lm.label); if(v){lm.label=v.trim();drawTop();fillSelects();} });
 
 /* teleop */
-const keys = {};
-let teleTimer = null;
-top.addEventListener("keydown", e => { if ("wasd".includes(e.key.toLowerCase())) { keys[e.key.toLowerCase()] = 1; startTele(); e.preventDefault(); } });
-top.addEventListener("keyup",   e => { if ("wasd".includes(e.key.toLowerCase())) { delete keys[e.key.toLowerCase()]; } });
-function startTele() {
-  if (teleTimer) return;
-  teleTimer = setInterval(() => {
-    const v = 0.6 * (keys.w ? 1 : 0) - 0.6 * (keys.s ? 1 : 0);
-    const w = 1.2 * (keys.a ? 1 : 0) - 1.2 * (keys.d ? 1 : 0);
-    send({type:"teleop", robot:"robot_1", v, w});
-    if (!v && !w) { clearInterval(teleTimer); teleTimer = null; }
-  }, 100);
-}
+const keys = {}; let teleTimer = null;
+const humanEpisode = () => M.activeHuman || !!(M.state && M.state.episode && M.state.episode.policy === "human");
+function teleCommand() { return {v:.6*(keys.w?1:0)-.6*(keys.s?1:0), w:1.2*(keys.a?1:0)-1.2*(keys.d?1:0)}; }
+function stopTele() { for (const k of Object.keys(keys)) delete keys[k]; if (teleTimer) clearInterval(teleTimer); teleTimer=null; send({type:"teleop",robot:"robot_1",v:0,w:0}); }
+top.addEventListener("keydown", e => { const k=e.key.toLowerCase(); if (!"wasd".includes(k) || !humanEpisode()) return; keys[k]=1; startTele(); e.preventDefault(); });
+top.addEventListener("keyup", e => { const k=e.key.toLowerCase(); if (!"wasd".includes(k)) return; delete keys[k]; if (humanEpisode()) { const c=teleCommand(); send({type:"teleop",robot:"robot_1",...c}); } });
+top.addEventListener("blur", stopTele); document.addEventListener("visibilitychange",()=>{if(document.hidden)stopTele();});
+function startTele() { if (teleTimer || !humanEpisode()) return; teleTimer=setInterval(()=>{ const c=teleCommand(); send({type:"teleop",robot:"robot_1",...c}); if(!c.v&&!c.w){clearInterval(teleTimer);teleTimer=null;} },100); }
 
 /* ---------------------------------------------------------------- three.js */
 let scene, cam, renderer, meshes = {}, boxGroup, goalRing, pathLine, splat = null, camYaw = 0, camPitch = 0, eye;
@@ -706,7 +733,8 @@ $("#ttype").onchange = e => { $("#task").value = TASK_TEXT[e.target.value] || ""
 $("#pol").onchange = e => {
   $("#endpoint").hidden = e.target.value !== "endpoint";
   const human = e.target.value === "human";
-  $("#skills").hidden = !human; $("#hint").style.display = human ? "block" : "none";
+  $("#skills").hidden = !human; $("#hint").textContent = "Human demo: click map, then W/S drive · A/D turn · choose a skill";
+  $("#hint").style.display = human ? "block" : "none";
 };
 
 function policyCfg() {
@@ -721,12 +749,12 @@ async function startEpisode(replayOf) {
                 policy:policyCfg(), seed:parseInt($("#seed").value || "7", 10),
                 humans:$("#humans").value, replay_of:replayOf || null};
   if ($("#ttype").value === "go_to") body.target = $("#skTgt").value;
-  $("#steplog").innerHTML = ""; M.seenSteps = new Set(); $("#banner").style.display = "none";
+  $("#steplog").innerHTML = ""; M.seenSteps = new Set(); M.logEpisodeId = null; $("#banner").style.display = "none";
   try {
     const r = await fetch("/episode/start/" + M.job, {method:"POST",
       headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    const j = await r.json(); M.lastEpisode = j.episode_id;
+    const j = await r.json(); M.lastEpisode = j.episode_id; M.activeHuman = policyCfg().kind === "human";
     $("#epStop").disabled = false; $("#rerun").disabled = false;
   } catch (e) { setStatus("Could not start the episode. " + e.message, true); }
 }
@@ -737,11 +765,13 @@ $("#epStop").onclick = async () => { await fetch("/episode/stop/" + M.job, {meth
 let lastEpId = null;
 function updateEpisode(ep) {
   if (!ep) {
+    M.activeHuman = false;
     if (lastEpId) { lastEpId = null; $("#epStop").disabled = true; refreshEpisodes(); }
     return;
   }
   lastEpId = ep.id; M.lastEpisode = ep.id; $("#epStop").disabled = false;
-  const key = ep.step + "|" + JSON.stringify(ep.last_action || {});
+  if (M.logEpisodeId !== ep.id) { M.logEpisodeId = ep.id; M.seenSteps.clear(); $("#steplog").innerHTML = ""; }
+  const key = `${ep.id}:${ep.step}:${JSON.stringify(ep.last_action || {})}:${JSON.stringify(ep.last_result || {})}`;
   if (ep.last_action && ep.last_result && !M.seenSteps.has(key)) {
     M.seenSteps.add(key);
     const log = $("#steplog");
@@ -794,6 +824,7 @@ $("#sft").onclick = async () => {
   } catch (e) { $("#sftout").textContent = "Could not build the training set."; }
 };
 document.querySelectorAll("[data-skill]").forEach(b => b.onclick = () => {
+  if (!humanEpisode()) { setStatus("Start a Human demo episode before sending skills.", true); return; }
   const a = b.dataset.skill;
   const msg = {type:"skill", action:a, object:null, target:null, text:null};
   if (a === "pick") msg.object = $("#skObj").value;
@@ -801,6 +832,8 @@ document.querySelectorAll("[data-skill]").forEach(b => b.onclick = () => {
   if (a === "pour") msg.target = "cup";
   send(msg);
 });
+// Narrow test hook: enables deterministic regression checks without changing API behavior.
+window.__walkinTest = { fitTop, toPx, toWorld, state: () => M };
 fitTop();
 </script>
 </body>

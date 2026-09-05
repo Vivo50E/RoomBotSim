@@ -1,5 +1,5 @@
 """Headless checks. python tests/run_all.py"""
-import os, sys, json, math, time
+import os, sys, json, math, time, tempfile, shutil, subprocess
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("WORLD_SOURCE", "mock")
 os.environ.pop("OPENROUTER_API_KEY", None)          # no network in tests
@@ -14,6 +14,7 @@ import tools.make_test_world as mtw
 from geometry import RES
 from planning import inflate, plan_xy, reach_grid, blocked_at, snap_free_xy
 import agents as agentsmod, commands, server, episodes as epmod
+from runtime_ops import load_jobs, rotate_episodes
 
 world, people = mtw.build("jobs/test")
 nx, ny = world["size_cells"]
@@ -147,6 +148,55 @@ for i in range(int(95 / 0.01)):
 bad = next((e for e in epmod.list_episodes("jobs/test") if e["episode_id"] == bad_id), {"tags": []})
 check("bad policy: picking from across the room is tagged",
       any(t.startswith("precondition:too_far") for t in bad["tags"]), str(bad["tags"]))
+
+# --- persisted restart recovery and safe archival rotation
+scratch = tempfile.mkdtemp(prefix="walkin-test-")
+try:
+    jd = os.path.join(scratch, "reloadable"); os.makedirs(jd)
+    shutil.copy("jobs/test/world.json", os.path.join(jd, "world.json"))
+    shutil.copy("jobs/test/people.json", os.path.join(jd, "people.json"))
+    restored = load_jobs(scratch)
+    check("restart: persisted world and people reload", "reloadable" in restored and restored["reloadable"]["runtime"] is None)
+    ed = os.path.join(jd, "episodes"); os.makedirs(ed)
+    for n in range(3):
+        with open(os.path.join(ed, f"e{n}.jsonl"), "w") as f:
+            f.write('{"type": "header", "episode_id": "e%d", "cfg": {}}\n' % n)
+            f.write('{"type": "footer", "success": true, "tags": [], "n_steps": 0}\n')
+        os.utime(os.path.join(ed, f"e{n}.jsonl"), (100 + n, 100 + n))
+    rotate_episodes(jd, retain=1)
+    listed = epmod.list_episodes(jd)
+    check("episodes: rotation archives safely and listing includes archives",
+          len(listed) == 3 and len(os.listdir(os.path.join(ed, "archive"))) == 2)
+finally:
+    shutil.rmtree(scratch)
+
+# --- batch runner must persist an episode and exit without uvicorn
+batch = subprocess.run([sys.executable, "tools/batch_run.py", "--job", "test", "--episodes", "1",
+                        "--task", "go_to", "--max-seconds", "40"], capture_output=True, text=True, timeout=60)
+check("batch: headless runner exits and persists", batch.returncode == 0 and '"finished": true' in batch.stdout,
+      batch.stderr[-160:])
+
+# --- realtime budget: 6 people and all 3 active robots keep up with wall clock
+import copy as _copy
+_perf_people = {"people": _copy.deepcopy(people["people"])}
+_PAL = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4"]
+while len(_perf_people["people"]) < 6:            # the demo room ships four; the target is six
+    _p = _copy.deepcopy(_perf_people["people"][len(_perf_people["people"]) % 4])
+    _p["id"] = len(_perf_people["people"]) + 1
+    _p["pos_xy"] = [_p["pos_xy"][0] + 0.5 * _p["id"], _p["pos_xy"][1] - 0.4 * _p["id"]]
+    _p["home_xy"] = list(_p["pos_xy"]); _p["color"] = _PAL[_p["id"] - 1]
+    _p["posture"] = "standing"; _p["activity"] = "walking"; _p["talking_to"] = None
+    _perf_people["people"].append(_p)
+perf = server.Runtime("test", world, _perf_people, "jobs/test")
+perf.brain_enabled = False
+for _ in range(3): perf.drop_robot()
+perf.start()
+wall = time.perf_counter(); time.sleep(30.1); elapsed_sim = perf.t; elapsed_wall = time.perf_counter() - wall
+perf.stop = True
+_n_people = len(perf.cast.agents); _n_robots = sum(1 for r in perf.robots.values() if r.active)
+check(f"performance: 30 s wall advances >=29 s ({_n_people} people, {_n_robots} robots)",
+      elapsed_sim >= 29.0 and _n_people >= 6 and _n_robots >= 3,
+      f"sim={elapsed_sim:.2f}s wall={elapsed_wall:.2f}s")
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:

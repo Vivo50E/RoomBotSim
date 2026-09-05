@@ -18,10 +18,18 @@
 
 ## Do this
 
-1. **Profile.** 6 people, 3 robots, a websocket client, 60 s. If `t` falls behind wall clock, the cheapest
-   wins are in `Cast.tick` (the social-force loop is O(n²) over a handful of agents, fine) and in
-   `drive_robot`'s replan, which rebuilds two stamped grids every 0.5 s per robot. Cache the stamped grid
-   across robots in the same tick.
+1. **Profile — but the answer is already in.** Measured on this machine, 5 September: 6 people, 3 active
+   robots, publishing state every tick, no websocket client. It ran **20.0 s of sim in 0.67 s of wall
+   clock, 30x real time**. The target is 1x. There is nothing to optimise here.
+
+   So: write the perf case as a regression guard, not as an optimisation project. Do **not** cache the
+   stamped planning grids across robots — that was my suggestion before measuring and it is premature.
+   If your harness reports anything near 1x, suspect the harness: the most likely cause is calling
+   `control_tick` every step instead of every fifth, or leaving the LLM brain enabled so every tick blocks
+   on a network call. Set `brain_enabled = False` for the test.
+
+   The one thing worth measuring that this run did not cover is a **real websocket client attached**, since
+   `publish_state` serialises the whole world 20 times a second and `state_since` copies it per client.
 2. **Reload jobs from disk on boot.** Scan `jobs/*/world.json` into `JOBS` at startup so a restart does not
    lose a room someone spent five minutes photographing.
 3. **Bound the queues.** `Runtime.events` is trimmed to 400; `event_log` is not. Episode JSONL files grow
@@ -30,6 +38,38 @@
    Task 05 needs this and should not have to invent it.
 5. **Failure surface.** `POST /api/act` blocks up to 70 s waiting for a skill. If a caller disconnects the
    skill keeps running. Decide whether that is right, and either document it or add cancellation.
+
+## Defect found by review, 5 September
+
+**Rotation silently removes episodes from the training data.** `runtime_ops.rotate_episodes` gzips closed
+episodes into `episodes/archive/` and unlinks the original. `episodes.list_episodes` was correctly updated
+to read both, so the UI still shows them — but `tools/make_sft.py` line 18 still globs only
+`os.path.join(episodes_dir, "*.jsonl")`, so every archived episode disappears from the fine-tuning export
+with no warning.
+
+Reproduced: three recorded episodes, `retain=1`, exporter returned examples from one of them. At the
+default `EPISODE_RETAIN=200` this bites exactly when Task 05 starts running episodes in volume, which is
+the one moment the data matters most.
+
+Fix `make_sft.build` to walk `archive/*.jsonl.gz` as well, opening with `gzip.open(path, "rt")`, the same
+way `list_episodes` now does. Add a test that records more episodes than `EPISODE_RETAIN`, rotates, and
+asserts the exporter still returns every step.
+
+## Second defect, same review
+
+**The performance test does not test what it claims.** The new case is labelled
+`"performance: 30 s wall advances >=29 s (6 people, 3 robots)"` but it builds its Runtime from the demo
+room, which has **four** people, not six. Six is the stated target, and the label asserts six, so the test
+passes while leaving the requirement unmeasured.
+
+Grow the cast to six before constructing the Runtime — copy two existing entries, give them fresh ids,
+distinct `pos_xy`/`home_xy`, colours 5 and 6 from the palette, `posture: standing` and `activity: walking`
+so they actually move. For reference, six people with three robots measured 30x real time on this machine,
+so the assertion will still pass comfortably; the point is that it should be measuring the real thing.
+
+Also note the case adds a hard `time.sleep(30.1)` to every run, taking the suite from 2 s to 32 s. That is
+a fair price for a real-time guard, but consider gating it behind a flag so the fast feedback loop stays
+fast.
 
 ## Done when
 

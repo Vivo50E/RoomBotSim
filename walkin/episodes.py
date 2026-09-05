@@ -1,5 +1,6 @@
 """Episode config, evaluators, failure tags and the JSONL recorder."""
-import os, json, math, uuid, datetime, logging
+import os, json, math, uuid, datetime, logging, gzip
+from runtime_ops import rotate_episodes
 
 log = logging.getLogger("episodes")
 
@@ -73,8 +74,10 @@ class Episode:
                      "n_steps": self.step, "duration_s": round(duration_s, 2), "final": final})
         try:
             self._w.close()
+            # Keep recent logs directly inspectable and compact older closed logs.
+            rotate_episodes(os.path.dirname(os.path.dirname(self.path)))
         except Exception:
-            pass
+            log.exception("episode rotation failed")
 
 
 PRECONDITIONS = {"too_far", "too_close", "not_facing", "holding_other", "not_holding", "cup_on_floor",
@@ -134,11 +137,15 @@ def list_episodes(job_dir):
     out = []
     if not os.path.isdir(d):
         return out
-    for fn in sorted(os.listdir(d)):
-        if not fn.endswith(".jsonl"):
-            continue
+    paths = [(os.path.join(d, fn), fn) for fn in os.listdir(d) if fn.endswith(".jsonl")]
+    archive = os.path.join(d, "archive")
+    if os.path.isdir(archive):
+        paths += [(os.path.join(archive, fn), fn[:-3]) for fn in os.listdir(archive) if fn.endswith(".jsonl.gz")]
+    for path, fn in sorted(paths):
         try:
-            lines = [json.loads(l) for l in open(os.path.join(d, fn)) if l.strip()]
+            opener = gzip.open if path.endswith(".gz") else open
+            with opener(path, "rt") as f:
+                lines = [json.loads(l) for l in f if l.strip()]
         except Exception:
             continue
         if not lines:

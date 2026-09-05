@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 
 import recon, geometry, perception, planning, sim as simmod, agents as agentsmod, commands, policy as policymod, episodes as epmod
+from runtime_ops import EVENT_LIMIT, EVENT_LOG_LIMIT, atomic_json_dump, load_jobs
 from geometry import (RES, floor_align, apply_T, transform_camera, camera_yaw, build_grid, grid_from_boxes,
                       rect_decompose, make_walls, extract_landmarks, nearest_walkable, place_fixture,
                       unproject, foot_pixel, scale_from_door, apply_scale, b64, fit_fallback_to_grid)
@@ -35,7 +36,9 @@ app = FastAPI(title="WALK-IN")
 os.makedirs("jobs", exist_ok=True)
 app.mount("/jobs", StaticFiles(directory="jobs"), name="jobs")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-JOBS = {}
+JOBS = load_jobs("jobs")
+if JOBS:
+    log.info("reloaded %d persisted jobs", len(JOBS))
 
 
 @app.get("/")
@@ -232,8 +235,8 @@ def pipeline(job_id):
                      cameras=[cam_json(c) for c in cams], T_atlas_to_sim=np.asarray(T_out).tolist(),
                      splat_url=splat_url, photo_a_url=f"/jobs/{job_id}/{names[0]}_1024.jpg",
                      photo_urls=[f"/jobs/{job_id}/{n}_1024.jpg" for n in names])
-        json.dump(world, open(os.path.join(d, "world.json"), "w"))
-        json.dump(dict(people=people), open(os.path.join(d, "people.json"), "w"))
+        atomic_json_dump(os.path.join(d, "world.json"), world)
+        atomic_json_dump(os.path.join(d, "people.json"), dict(people=people))
         j["world"] = world
         j["people"] = dict(people=people)
         st["stage"] = "ready"
@@ -295,8 +298,8 @@ async def confirm(job_id: str, body: dict):
         if lm:
             lm["label"] = e.get("label", lm["label"])
             lm["center_xy"] = e.get("center_xy", lm["center_xy"])
-    json.dump(j["world"], open(os.path.join(j["dir"], "world.json"), "w"))
-    json.dump(j["people"], open(os.path.join(j["dir"], "people.json"), "w"))
+    atomic_json_dump(os.path.join(j["dir"], "world.json"), j["world"])
+    atomic_json_dump(os.path.join(j["dir"], "people.json"), j["people"])
     start_runtime(job_id)
     return {"ok": True}
 
@@ -371,6 +374,9 @@ class Runtime:
         self.seq = 0
         self.events = []
         self.event_log = []
+        # Per-planning-window stamped human grid shared by all active robots.
+        self._planning_stamp_t = None
+        self._planning_people_grid = None
         self.lock = threading.RLock()
         self.latest = None
         self.bump_debounce = {}
@@ -411,8 +417,10 @@ class Runtime:
         self.event_log.append(text)
         if self.ep is not None:
             self.ep_events.append(text)
-        if len(self.events) > 400:
-            self.events = self.events[-400:]
+        if len(self.events) > EVENT_LIMIT:
+            self.events = self.events[-EVENT_LIMIT:]
+        if len(self.event_log) > EVENT_LOG_LIMIT:
+            self.event_log = self.event_log[-EVENT_LOG_LIMIT:]
 
     def label_of_xy(self, xy):
         best, bd = None, 1e9
@@ -517,10 +525,16 @@ class Runtime:
             return "arrived"
         if t - r.last_plan >= 0.5:
             r.last_plan = t
-            ppl_now = [(a.x, a.y) for a in self.cast.agents if a.id != ignore_pid]
-            ppl_next = [(a.x + a.vx, a.y + a.vy) for a in self.cast.agents if a.id != ignore_pid]
+            # Stamping people is identical for each robot at this simulation tick;
+            # cache it so 3 active robots do not repeat two expensive dilations.
+            stamp_key = (round(t, 2), ignore_pid)
+            if self._planning_stamp_t != stamp_key:
+                ppl_now = [(a.x, a.y) for a in self.cast.agents if a.id != ignore_pid]
+                ppl_next = [(a.x + a.vx, a.y + a.vy) for a in self.cast.agents if a.id != ignore_pid]
+                self._planning_people_grid = stamp_discs(self.blocked_robot, ppl_now + ppl_next, 0.45, self.origin)
+                self._planning_stamp_t = stamp_key
             others = [(o.x, o.y) for o in self.robots.values() if o.active and o is not r]
-            blocked = stamp_discs(self.blocked_robot, ppl_now + ppl_next, 0.45, self.origin)
+            blocked = self._planning_people_grid
             if others:
                 blocked = stamp_discs(blocked, others, 0.5, self.origin)
             if r.follow is not None:
@@ -1091,7 +1105,11 @@ def api_task(job_id: str, body: dict):
 
 @app.post("/api/act/{job_id}")
 def api_act(job_id: str, body: dict):
-    """Execute one skill and block until it finishes. body is the action JSON (see /api/schema)."""
+    """Execute one skill and block until it finishes.
+
+    Accepted actions are intentionally durable across client disconnects; use
+    ``POST /episode/stop`` for an explicit safe abort (see OPERATIONS.md).
+    """
     rt = _rt(job_id)
     if rt.ep is None:
         raise HTTPException(409, "no episode running")
@@ -1132,6 +1150,7 @@ def api_schema():
                    "object": "cup | pot | null", "text": "string | null"},
         "observation_keys": ["episode_id", "step", "task", "requester", "robot", "objects", "landmarks",
                              "people", "last_action", "last_result", "events", "spilled", "actions"],
+        "cancellation": "Accepted /api/act requests continue after client disconnect or response timeout; POST /episode/stop explicitly aborts.",
         "note": "Or let the server call your model instead: POST /api/task with "
                 "policy={'kind':'chat','url':'https://api.deepseek.com/v1/chat/completions',"
                 "'model':'deepseek-chat','key':'sk-...'} and it runs the whole episode itself.",
