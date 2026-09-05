@@ -1,9 +1,10 @@
 """Headless checks. python tests/run_all.py"""
-import os, sys, json, math, time, tempfile, shutil, subprocess, copy, threading
+import os, sys, json, math, time, tempfile, shutil, subprocess, copy, threading, socket, asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("WORLD_SOURCE", "mock")
 os.environ.pop("OPENROUTER_API_KEY", None)          # no network in tests
 import numpy as np
+import uvicorn, websockets
 
 PASS, FAIL = [], []
 def check(name, cond, info=""):
@@ -218,7 +219,7 @@ check("batch: headless runner exits and persists", batch.returncode == 0 and '"f
 check("api: durable /api/act cancellation policy is discoverable",
       "continue after client disconnect" in server.api_schema()["cancellation"])
 
-# --- realtime budget: exact 6-person/3-robot target plus a state-stream client
+# --- realtime budget: exact 6-person/3-robot target over the real WebSocket route
 _perf_people = {"people": copy.deepcopy(people["people"])}
 while len(_perf_people["people"]) < 6:
     p = copy.deepcopy(_perf_people["people"][len(_perf_people["people"]) % 4])
@@ -227,24 +228,97 @@ while len(_perf_people["people"]) < 6:
              home_xy=[-1.4, 1.4] if len(_perf_people["people"]) == 4 else [1.4, -1.4],
              color=server.COLORS[len(_perf_people["people"])], posture="standing", activity="walking", talking_to=None)
     _perf_people["people"].append(p)
-perf = server.Runtime("test", world, _perf_people, JOB_DIR)
+perf_job = f"perf_ws_{os.getpid()}_{time.time_ns()}"
+perf = server.Runtime(perf_job, world, _perf_people, JOB_DIR)
 perf.brain_enabled = False
 for _ in range(3): perf.drop_robot()
-# Equivalent to a websocket sender: repeatedly copy the incremental payload and JSON serialize it at 20 Hz.
+server.JOBS[perf_job] = dict(dir=JOB_DIR, photos=["A"],
+                             status=dict(stage="running", qwen="skipped", atlas="done", message="performance fixture"),
+                             world=world, people=_perf_people, runtime=perf)
+
+# Reserve a loopback port, then hand that actual listening socket to uvicorn.  The
+# client below uses the installed websockets package, never a FastAPI test transport.
+listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listener.bind(("127.0.0.1", 0))
+listener.listen(128)
+perf_port = listener.getsockname()[1]
+asgi_server = uvicorn.Server(uvicorn.Config(server.app, host="127.0.0.1", port=perf_port,
+                                             log_level="warning", access_log=False, lifespan="off"))
+asgi_thread = threading.Thread(target=lambda: asgi_server.run(sockets=[listener]), daemon=True)
+asgi_thread.start()
+server_ready = False
+for _ in range(100):
+    if asgi_server.started:
+        server_ready = True
+        break
+    if not asgi_thread.is_alive():
+        break
+    time.sleep(.05)
+
 client_stop = threading.Event()
-def consume_state_stream():
-    last = 0
-    while not client_stop.is_set():
-        st, last = perf.state_since(last)
-        if st: json.dumps(st)
-        time.sleep(.05)
-client = threading.Thread(target=consume_state_stream, daemon=True)
-perf.start(); client.start()
-wall = time.perf_counter(); time.sleep(30.1); elapsed_sim = perf.t; elapsed_wall = time.perf_counter() - wall
-client_stop.set(); client.join(1); perf.stop = True
+client_connected = threading.Event()
+state_frame = threading.Event()
+state_counts = {"frames": 0, "matching": 0}
+client_errors = []
+def consume_network_websocket():
+    async def receive_frames():
+        uri = f"ws://127.0.0.1:{perf_port}/ws/{perf_job}"
+        try:
+            async with websockets.connect(uri, open_timeout=5, close_timeout=2) as websocket:
+                client_connected.set()
+                while not client_stop.is_set():
+                    try:
+                        frame = json.loads(await asyncio.wait_for(websocket.recv(), timeout=.25))
+                    except asyncio.TimeoutError:
+                        continue
+                    if frame.get("type") == "state":
+                        state_counts["frames"] += 1
+                        if len(frame.get("people", [])) == 6 and len(frame.get("robots", [])) == 3:
+                            state_counts["matching"] += 1
+                            state_frame.set()
+        except Exception as exc:
+            if not client_stop.is_set():
+                client_errors.append(str(exc))
+    asyncio.run(receive_frames())
+
+client = threading.Thread(target=consume_network_websocket, daemon=True)
+elapsed_sim = elapsed_wall = 0.0
+try:
+    if server_ready:
+        client.start()
+        connected = client_connected.wait(5)
+        if connected:
+            perf.start()
+            wall = time.perf_counter()
+            time.sleep(30.1)
+            elapsed_sim = perf.t
+            elapsed_wall = time.perf_counter() - wall
+        else:
+            client_errors.append("WebSocket client did not connect")
+    else:
+        client_errors.append("uvicorn did not start")
+finally:
+    client_stop.set()
+    if client.is_alive():
+        client.join(3)
+    perf.stop = True
+    asgi_server.should_exit = True
+    if asgi_thread.is_alive():
+        asgi_thread.join(5)
+    server.JOBS.pop(perf_job, None)
+    try:
+        listener.close()
+    except OSError:
+        pass
+
 _n_people = len(perf.cast.agents); _n_robots = sum(1 for r in perf.robots.values() if r.active)
-check("performance: 30 s wall advances >=29 s (6 people, 3 robots, state-stream client)",
-      elapsed_sim >= 29.0 and _n_people == 6 and _n_robots == 3,
+check("performance: real network WebSocket connects and receives 6-person/3-robot state frames",
+      server_ready and client_connected.is_set() and state_frame.is_set() and state_counts["frames"] > 0
+      and state_counts["matching"] > 0 and not client_errors,
+      f"frames={state_counts['frames']} matching={state_counts['matching']} errors={client_errors}")
+check("performance: 30 s wall advances >=29 s (6 people, 3 robots, network WebSocket client)",
+      elapsed_wall >= 30.0 and elapsed_sim >= 29.0 and _n_people == 6 and _n_robots == 3,
       f"sim={elapsed_sim:.2f}s wall={elapsed_wall:.2f}s")
 
 shutil.rmtree(TEST_ROOT)
