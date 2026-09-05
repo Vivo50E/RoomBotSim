@@ -88,23 +88,44 @@ def main():
         c = seen.get(lm["label"], 0) + 1; seen[lm["label"]] = c
         if c > 1: lm["label"] = f'{lm["label"]} {c}'
 
-    # people: no camera poses, so spread them around the room facing inward, on walkable cells
-    counter = next((l for l in landmarks if l["label"].startswith("counter")), None)
+    # people: there are no camera poses to unproject from, so place them the way the room reads:
+    # seated people take stools along the long side of the main table, facing it; standing people go to
+    # the landmark their own description mentions (entrance, kitchen, couch), else open floor nearby.
+    counter = next((l for l in landmarks if l["label"].startswith(("counter", "cabinet"))), None)
     table = next((l for l in landmarks if l["label"].startswith(("table", "desk"))), None)
+    door = next((l for l in landmarks if l["label"].startswith("door")), None)
+    couch = next((l for l in landmarks if l["label"].startswith("couch")), None)
     anchor = table or counter
+    def near(lm, k, n, dist=0.55):
+        """k-th of n spots just outside a landmark's long edge, facing it."""
+        cx, cy = lm["center_xy"]; sx, sy = lm["size_xy"]
+        along = np.array([1.0, 0.0]) if sx >= sy else np.array([0.0, 1.0]); out = np.array([-along[1], along[0]])
+        L = max(sx, sy); off = (k - (n - 1) / 2) * min(0.8, L / max(n, 1))
+        side = 1 if k % 2 == 0 else -1
+        p = np.array([cx, cy]) + along * off + out * side * (min(sx, sy) / 2 + dist)
+        return nearest_walkable(grid["walk"], grid["origin_xy"], float(p[0]), float(p[1]))
+    seated = [p for p in people_raw if p["posture"] == "seated"]
+    standing = [p for p in people_raw if p["posture"] != "seated"]
     people = []
-    for i, p in enumerate(people_raw):
-        ang = 2 * math.pi * i / max(len(people_raw), 1) + 0.4
-        rad = 0.26 * min(nx, ny) * RES
-        x, y = nearest_walkable(grid["walk"], grid["origin_xy"],
-                                room_center[0] + rad * math.cos(ang), room_center[1] + rad * math.sin(ang))
-        fx, fy = (anchor["center_xy"] if (p["posture"] == "seated" and anchor) else room_center)
-        people.append(dict(id=p["id"], description=p["description"], posture=p["posture"],
-                           activity=p["activity"], talking_to=p["talking_to"],
-                           pos_xy=[x, y], home_xy=[x, y],
-                           facing_deg=math.degrees(math.atan2(fy - y, fx - x)),
-                           personality=p["personality"], color=COLORS[(p["id"] - 1) % len(COLORS)],
-                           boxes=p.get("boxes", {})))
+    for k, p in enumerate(seated):
+        x, y = near(anchor, k, max(len(seated), 1), 0.45) if anchor else (room_center[0] + k, room_center[1])
+        fx, fy = anchor["center_xy"] if anchor else room_center
+        people.append((p, x, y, fx, fy))
+    for k, p in enumerate(standing):
+        desc = p["description"].lower()
+        lm = door if ("entrance" in desc or "door" in desc) and door else (counter if ("kitchen" in desc or "counter" in desc) and counter else (couch if "couch" in desc and couch else None))
+        if lm is not None:
+            x, y = near(lm, k, max(len(standing), 1), 0.9)
+        else:
+            ang = 2 * math.pi * k / max(len(standing), 1) + 0.9
+            x, y = nearest_walkable(grid["walk"], grid["origin_xy"], room_center[0] + 2.2 * math.cos(ang), room_center[1] + 2.2 * math.sin(ang))
+        fx, fy = (lm["center_xy"] if lm is not None else room_center)
+        people.append((p, x, y, fx, fy))
+    people = [dict(id=p["id"], description=p["description"], posture=p["posture"], activity=p["activity"],
+                   talking_to=p["talking_to"], pos_xy=[x, y], home_xy=[x, y],
+                   facing_deg=math.degrees(math.atan2(fy - y, fx - x)), personality=p["personality"],
+                   color=COLORS[(p["id"] - 1) % len(COLORS)], boxes=p.get("boxes", {}))
+              for (p, x, y, fx, fy) in sorted(people, key=lambda t: t[0]["id"])]
     # A judge should see the room alive within seconds. Detected people skew seated and idle, and the
     # sampler leaves seated people waiting, so promote a couple of standing people to walking. They then
     # pick landmarks to wander between and the room reads as inhabited rather than staged.
@@ -125,8 +146,13 @@ def main():
                  occupancy_b64=b64(grid["occ"]), walkable_b64=b64(grid["walk"]), height_b64=b64(grid["height_cm"]),
                  obstacles=G.rect_decompose(grid["occ"], grid["origin_xy"], RES, grid["height_cm"]),
                  walls=G.make_walls(grid["origin_xy"], grid["size_cells"], RES), landmarks=landmarks,
-                 cameras=[], T_atlas_to_sim=np.eye(4).tolist(),
-                 splat_url=(f'/jobs/{JOB}/marble/{st1["splat"]}' if st1.get("splat") else None),
+                 cameras=[],
+                 # T0 maps the raw splat into the sim frame; Spark renders PLY/SPZ in raw coordinates, so
+                 # the viewer uses T0 directly. (An overhead screenshot is a bad way to check this: seeing
+                 # floor tiles from above means the camera is under the floor. Check at eye height.)
+                 T_atlas_to_sim=st1.get("T0", np.eye(4).tolist()),
+                 splat_url=(f'/jobs/{JOB}/marble/primary_clean.ply' if os.path.exists(os.path.join(out, "primary_clean.ply"))
+                            else (f'/jobs/{JOB}/marble/{st1["splat"]}' if st1.get("splat") else None)),
                  photo_a_url=f"/jobs/{JOB}/{names[0]}_1024.jpg",
                  photo_urls=[f"/jobs/{JOB}/{n}_1024.jpg" for n in names])
     with open(os.path.join(d, "world.json"), "w") as f: json.dump(world, f)

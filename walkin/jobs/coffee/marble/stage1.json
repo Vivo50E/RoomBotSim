@@ -1,0 +1,250 @@
+{
+ "people_raw": [
+  {
+   "id": 1,
+   "boxes": {
+    "A": [
+     0.348,
+     0.265,
+     0.409,
+     0.54
+    ],
+    "B": [
+     0.335,
+     0.27,
+     0.395,
+     0.57
+    ],
+    "C": [
+     0.535,
+     0.27,
+     0.64,
+     0.64
+    ]
+   },
+   "description": "man in a dark grey short-sleeved shirt and dark cargo pants",
+   "posture": "standing",
+   "activity": "typing",
+   "talking_to": null,
+   "personality": "focused on work"
+  },
+  {
+   "id": 2,
+   "boxes": {
+    "A": [
+     0.452,
+     0.32,
+     0.55,
+     0.51
+    ],
+    "B": [
+     0.495,
+     0.32,
+     0.57,
+     0.48
+    ],
+    "D": [
+     0.745,
+     0.36,
+     0.83,
+     0.51
+    ]
+   },
+   "description": "woman with long dark hair wearing a light blue oversized button-down shirt",
+   "posture": "seated",
+   "activity": "typing",
+   "talking_to": null,
+   "personality": "diligent, tech-oriented"
+  },
+  {
+   "id": 3,
+   "boxes": {
+    "A": [
+     0.545,
+     0.305,
+     0.615,
+     0.48
+    ],
+    "D": [
+     0.615,
+     0.34,
+     0.7,
+     0.48
+    ]
+   },
+   "description": "man with a beard wearing a grey hoodie",
+   "posture": "seated",
+   "activity": "typing",
+   "talking_to": null,
+   "personality": "relaxed, concentrated"
+  },
+  {
+   "id": 4,
+   "boxes": {
+    "A": [
+     0.745,
+     0.305,
+     0.785,
+     0.5
+    ],
+    "B": [
+     0.595,
+     0.315,
+     0.645,
+     0.47
+    ],
+    "C": [
+     0.175,
+     0.315,
+     0.235,
+     0.46
+    ]
+   },
+   "description": "man in a white t-shirt and black pants",
+   "posture": "standing",
+   "activity": "idle",
+   "talking_to": null,
+   "personality": "observant, patient"
+  },
+  {
+   "id": 5,
+   "boxes": {
+    "A": [
+     0.77,
+     0.3,
+     0.815,
+     0.515
+    ],
+    "B": [
+     0.55,
+     0.315,
+     0.595,
+     0.46
+    ],
+    "C": [
+     0.095,
+     0.32,
+     0.175,
+     0.47
+    ],
+    "G": [
+     0.845,
+     0.33,
+     0.925,
+     0.65
+    ]
+   },
+   "description": "man in a black outfit standing near the entrance",
+   "posture": "standing",
+   "activity": "talking",
+   "talking_to": 6,
+   "personality": "social, engaged"
+  },
+  {
+   "id": 6,
+   "boxes": {
+    "A": [
+     0.8,
+     0.3,
+     0.84,
+     0.48
+    ],
+    "G": [
+     0.755,
+     0.33,
+     0.835,
+     0.64
+    ]
+   },
+   "description": "man in a beige t-shirt and jeans",
+   "posture": "standing",
+   "activity": "talking",
+   "talking_to": 5,
+   "personality": "chatty, friendly"
+  }
+ ],
+ "fixtures": [
+  {
+   "label": "door",
+   "photo": "A",
+   "bbox": [
+    0.1708984375,
+    0.24739583333333334,
+    0.283203125,
+    0.625
+   ]
+  },
+  {
+   "label": "tv",
+   "photo": "C",
+   "bbox": [
+    0.4638671875,
+    0.3515625,
+    0.5224609375,
+    0.4427083333333333
+   ]
+  }
+ ],
+ "names": [
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G"
+ ],
+ "splat": "primary_scene.spz",
+ "T0": [
+  [
+   1.4636373328698304,
+   0.003450439045166394,
+   -9.697668318534754e-06,
+   -0.06225393557590665
+  ],
+  [
+   -9.697668318534754e-06,
+   0.008227229525114309,
+   1.4636182768721688,
+   -1.728619415724686
+  ],
+  [
+   0.003450439045166394,
+   -1.4636142097419993,
+   0.008227229525114309,
+   1.5538716333937732
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "T_view": [
+  [
+   1.4636373328698304,
+   -0.003450439045166394,
+   9.697668318534754e-06,
+   -0.06225393557590665
+  ],
+  [
+   -9.697668318534754e-06,
+   -0.008227229525114309,
+   -1.4636182768721688,
+   -1.728619415724686
+  ],
+  [
+   0.003450439045166394,
+   1.4636142097419993,
+   -0.008227229525114309,
+   1.5538716333937732
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ]
+}

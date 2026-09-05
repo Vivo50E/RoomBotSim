@@ -116,7 +116,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
   </div>
 </div>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from "three";
 const $=s=>document.querySelector(s), arr=v=>Array.isArray(v)?v:[];
@@ -164,7 +164,7 @@ async function runEpisode(outcome){
   const body={task_type:"coffee_to_person",task_text:"get me a cup of coffee and bring it to me",requester:p.id,robot_type:"spot",
               policy:{kind:"scripted"},humans:"scripted",max_steps:18,max_seconds:300,demo:outcome,
               // act one is random; act two replays one of the crowd schedules verified end to end (see tools/verify_demo.py)
-              seed:outcome==="succeed"?[11,7][Math.floor(Math.random()*2)]:Math.floor(Math.random()*1000)};
+              seed:outcome==="succeed"?[2,3,4,5,6,7,8,9,10,12,13,14][Math.floor(Math.random()*12)]:Math.floor(Math.random()*1000)};
   const r=await fetch("/episode/start/"+M.job,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   if(r.ok){const j=await r.json(); M.lastEp=j.episode_id; M.phase="running"; $("#run").disabled=$("#rerun").disabled=true; live(true,outcome==="fail"?"run 1 · untrained":"run 2 · retrained");}
 }
@@ -241,7 +241,7 @@ top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({
 let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0;
 const dbg=t=>{const e=$("#dbg"); if(e) e.textContent=t;};
 function initThree(){const host=$("#view"); host.innerHTML="";
-  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; host.appendChild(renderer.domElement);
+  renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(1); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; host.appendChild(renderer.domElement);
   scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0c12);
   cam=new THREE.PerspectiveCamera(58,host.clientWidth/host.clientHeight,.05,200); cam.up.set(0,0,1);
   const cx=OX+NX*RES/2, cy=OY+NY*RES/2; eye=new THREE.Vector3(cx-5.5,cy-4.5,1.75); camYaw=Math.atan2(cy-eye.y,cx-eye.x); camPitch=-0.14; look();
@@ -258,17 +258,44 @@ function look(){cam.position.copy(eye); cam.lookAt(eye.x+Math.cos(camPitch)*Math
 function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=e=>{d=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId);followPause=performance.now()+8000;}; el.onpointerup=()=>d=null;
   el.onpointermove=e=>{if(!d)return; camYaw-=(e.clientX-d[0])*.004; camPitch=Math.max(-1.2,Math.min(1.2,camPitch+(e.clientY-d[1])*.004)); d=[e.clientX,e.clientY]; look();};
   el.onwheel=e=>{e.preventDefault(); followPause=performance.now()+8000; const s=e.deltaY>0?-.5:.5; eye.x+=s*Math.cos(camPitch)*Math.cos(camYaw); eye.y+=s*Math.cos(camPitch)*Math.sin(camYaw); eye.z=Math.max(.4,eye.z+s*Math.sin(camPitch)); look();};
-  addEventListener("keydown",e=>{if(e.key==="c") follow=!follow;});}
+  addEventListener("keydown",e=>{if(e.key==="c") follow=!follow;}); window.__setFollow=v=>{follow=v;}; window.__setCam=(x,y,z,tx,ty,tz)=>{follow=false; eye.set(x,y,z); camYaw=Math.atan2(ty-y,tx-x); camPitch=Math.atan2(tz-z,Math.hypot(tx-x,ty-y)); look();};}
 function resizeThree(){if(!renderer)return; const h=$("#view"); renderer.setSize(h.clientWidth,h.clientHeight); cam.aspect=h.clientWidth/h.clientHeight; cam.updateProjectionMatrix();}
 
-/* people: the real person, cut from the photo they were seen in, standing at their own height */
-function heightOf(p){return [1.64,1.78,1.71,1.86,1.68,1.75][(p.id-1)%6];}
-function personMesh(p){const gp=new THREE.Group(); const H=heightOf(p), h=p.posture==="seated"?H*.78:H; gp.userData.h=h;
-  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.30,24),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.42,depthWrite:false})); shadow.position.z=.012; gp.add(shadow);
-  const ph=new THREE.Sprite(new THREE.SpriteMaterial({color:0x3a3f4d,transparent:true,opacity:.55,depthWrite:false})); ph.scale.set(.55,h,1); ph.position.z=h/2; ph.name="cut"; gp.add(ph);
-  const tag=labelSprite(String(p.id),colorOf(p.id)); tag.position.z=h+.22; gp.add(tag); return gp;}
-function applyCrop(gp,c){const cut=gp.getObjectByName("cut"); if(!cut)return; const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.minFilter=THREE.LinearFilter;
-  cut.material.map=tex; cut.material.color.set(0xffffff); cut.material.opacity=1; cut.material.needsUpdate=true; const h=gp.userData.h, ar=c.width/Math.max(c.height,1); cut.scale.set(h*ar,h,1); cut.position.z=h/2;}
+/* people: stylised humanoid figures, one height each, posed seated or standing, legs swing when they walk */
+function heightOf(p){return [1.62,1.76,1.68,1.80,1.64,1.72][(p.id-1)%6];}
+function personMesh(p){const H=heightOf(p), seated=p.posture==="seated"; const gp=new THREE.Group(); gp.userData={h:H,seated,dist:0,ph:p.id*1.7};
+  const shirt=new THREE.MeshStandardMaterial({color:new THREE.Color(colorOf(p.id)).multiplyScalar(.8),roughness:.85});
+  const pants=new THREE.MeshStandardMaterial({color:0x2b2f3a,roughness:.9}); const skin=new THREE.MeshStandardMaterial({color:0xd9b99b,roughness:.8}); const hair=new THREE.MeshStandardMaterial({color:0x2a2018,roughness:1});
+  const s=H/1.75;                                  // proportions scale with height
+  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.32,24),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.4,depthWrite:false})); shadow.position.z=.012; gp.add(shadow);
+  const hips=new THREE.Group(); gp.add(hips); gp.userData.hips=hips;
+  const legs=[];
+  for(const side of [-1,1]){const th=new THREE.Group(); th.position.set(0,side*.10*s,0); hips.add(th);
+    const thigh=new THREE.Mesh(new THREE.CapsuleGeometry(.075*s,.36*s,4,10),pants); thigh.rotation.x=Math.PI/2; thigh.position.z=-.22*s; th.add(thigh);
+    const kn=new THREE.Group(); kn.position.z=-.44*s; th.add(kn);
+    const shin=new THREE.Mesh(new THREE.CapsuleGeometry(.06*s,.36*s,4,10),pants); shin.rotation.x=Math.PI/2; shin.position.z=-.21*s; kn.add(shin);
+    const foot=new THREE.Mesh(new THREE.BoxGeometry(.24*s,.10*s,.06*s),new THREE.MeshStandardMaterial({color:0x111318})); foot.position.set(.06*s,0,-.44*s); kn.add(foot);
+    legs.push({th,kn,side});}
+  gp.userData.legs=legs;
+  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.16*s,.42*s,4,12),shirt); torso.rotation.x=Math.PI/2; torso.position.z=.32*s; hips.add(torso);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.05*s,.05*s,.08*s,10),skin); neck.rotation.x=Math.PI/2; neck.position.z=.66*s; hips.add(neck);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.115*s,18,14),skin); head.position.z=.80*s; hips.add(head);
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.118*s,18,10,0,Math.PI*2,0,Math.PI*.55),hair); cap.rotation.x=-Math.PI/2; cap.position.z=.81*s; hips.add(cap);
+  const arms=[];
+  for(const side of [-1,1]){const sh=new THREE.Group(); sh.position.set(0,side*.22*s,.56*s); hips.add(sh);
+    const ua=new THREE.Mesh(new THREE.CapsuleGeometry(.05*s,.28*s,4,10),shirt); ua.rotation.x=Math.PI/2; ua.position.z=-.16*s; sh.add(ua);
+    const el=new THREE.Group(); el.position.z=-.32*s; sh.add(el);
+    const fa=new THREE.Mesh(new THREE.CapsuleGeometry(.045*s,.26*s,4,10),skin); fa.rotation.x=Math.PI/2; fa.position.z=-.15*s; el.add(fa);
+    arms.push({sh,el,side});}
+  gp.userData.arms=arms;
+  hips.position.z=.92*s;                          // standing hip height
+  if(seated){hips.position.z=.74;   /* on a bar stool at the high table */ for(const L of legs){L.th.rotation.y=-Math.PI/2; L.kn.rotation.y=Math.PI/2;} for(const A of arms){A.sh.rotation.y=-.6; A.el.rotation.y=-1.1;}}
+  const tag=labelSprite(String(p.id),colorOf(p.id)); tag.scale.set(.17,.17,1); tag.position.z=(seated?1.45:H)+.16; gp.add(tag); return gp;}
+function animatePerson(m,p,dt){const u=m.userData; if(u.seated) return; const v=Math.hypot(p.vx||0,p.vy||0); u.dist+=v*dt; const sw=Math.min(1,v/.8)*.55;
+  for(const L of u.legs){const ph=u.dist*5.2+u.ph+(L.side>0?Math.PI:0); L.th.rotation.y=Math.sin(ph)*sw; L.kn.rotation.y=Math.max(0,Math.sin(ph+.9))*sw*.9;}
+  for(const A of u.arms){const ph=u.dist*5.2+u.ph+(A.side>0?0:Math.PI); A.sh.rotation.y=Math.sin(ph)*sw*.6; A.el.rotation.y=-.25-Math.max(0,Math.sin(ph))*sw*.5;}
+  u.hips.position.z=.92*(u.h/1.75)+Math.abs(Math.sin(u.dist*5.2))*.02*Math.min(1,v/.8);}
+function applyCrop(gp,c){}                       // photo crops now live only in the side list
 function labelSprite(txt,col){const c=document.createElement("canvas"); c.width=c.height=64; const x=c.getContext("2d"); x.fillStyle="rgba(11,12,18,.85)"; x.beginPath(); x.arc(32,32,26,0,7); x.fill(); x.strokeStyle=col; x.lineWidth=3; x.stroke(); x.fillStyle="#e8eaf2"; x.font="600 28px Inter"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt,32,33);
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false})); s.scale.set(.24,.24,1); return s;}
 function captionSprite(txt){const c=document.createElement("canvas"); c.width=512; c.height=96; const x=c.getContext("2d"); x.font="500 30px 'IBM Plex Mono',monospace"; const w=x.measureText(txt).width+44;
@@ -291,7 +318,7 @@ function robotMesh(){const gp=new THREE.Group(); const shell=new THREE.MeshStand
     const foot=new THREE.Mesh(new THREE.SphereGeometry(.035,10,8),grey); foot.position.set(.13,0,-.30); knee.add(foot);
     gp.userData.legs.push({hip,knee,ph});});
   const shoulder=new THREE.Group(); shoulder.position.set(-.30,0,.72); gp.add(shoulder);
-  shoulder.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.10,14),dark),{position:new THREE.Vector3(0,0,.05)}));
+  const shCap=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.10,14),dark); shCap.rotation.x=Math.PI/2; shCap.position.z=.05; shoulder.add(shCap);
   const upperArm=new THREE.Group(); upperArm.position.set(0,0,.10); shoulder.add(upperArm);
   const ua=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.42),shell); ua.position.z=.21; upperArm.add(ua);
   const elbow=new THREE.Group(); elbow.position.z=.42; upperArm.add(elbow);
@@ -309,22 +336,48 @@ function animateRobot(m,r,dt){const u=m.userData; const v=r.v||0; u.dist+=v*dt; 
 function targetName(r){const ep=M.state&&M.state.episode; const la=ep&&ep.last_action; if(!la) return "next spot"; const t=la.target; if(t==null) return "next spot"; if(typeof t==="number"){const p=M.people.find(p=>p.id===t); return p?p.description.split(" ").slice(0,4).join(" "):"person "+t;} const lm=arr(M.world.landmarks).find(l=>l.id===t); return lm?lm.label:String(t);}
 let lastT=performance.now();
 function updateThree(st){if(!scene)return; const now=performance.now(), dt=Math.min(.1,(now-lastT)/1000); lastT=now;
-  for(const p of arr(st.people)){const m=meshes["p"+p.id]; if(m) m.position.set(p.x,p.y,0);}
+  for(const p of arr(st.people)){const m=meshes["p"+p.id]; if(!m)continue; m.position.set(p.x,p.y,0); m.rotation.z=p.yaw||0; animatePerson(m,p,dt);}
   let lead=null;
   for(const r of arr(st.robots)){let m=meshes[r.id]; if(!m){m=robotMesh(); meshes[r.id]=m; scene.add(m);} m.visible=true; m.position.set(r.x,r.y,0); m.rotation.z=r.yaw; animateRobot(m,r,dt); lead=lead||r;
     if(arr(r.path).length&&pathLine) pathLine.geometry.setFromPoints(r.path.map(p=>new THREE.Vector3(p[0],p[1],.03)));
     if(goalRing){goalRing.visible=!!r.goal; if(r.goal) goalRing.position.set(r.goal[0],r.goal[1],.02);}}
   for(const o of arr(st.objects)){const m=meshes["o"+o.id]; if(!m)continue; m.visible=true; m.position.set(o.x,o.y,o.z); if(o.id==="cup") m.material.color.set(o.filled?0x6F4A24:0xF2F0EA);}
-  if(lead&&follow&&now>followPause){const want=new THREE.Vector3(lead.x-3.4*Math.cos(lead.yaw)+1.2*Math.sin(lead.yaw),lead.y-3.4*Math.sin(lead.yaw)-1.2*Math.cos(lead.yaw),1.85);
-    eye.lerp(want,.035); camYaw+=((Math.atan2(lead.y-eye.y,lead.x-eye.x)-camYaw+Math.PI*3)%(Math.PI*2)-Math.PI)*.06; camPitch+=(-.2-camPitch)*.05; look();}}
+  if(lead&&follow&&now>followPause){
+    // a low chase cam ends up inside the counter the moment Spot works at it. Shoot from above table
+    // height, and rise further whenever the camera's own cell is occupied furniture.
+    // candidate stances around Spot, behind it first; take the first one on clear floor inside the room,
+    // so the camera never ends up inside the counter or the wall Spot is facing
+    const free=(x,y)=>{if(x<OX+.6||y<OY+.6||x>OX+NX*RES-.6||y>OY+NY*RES-.6) return false; if(!occ) return true;
+      // a 0.7 m clearance: a table edge one cell away still fills the lens with its skirt
+      for(let a=0;a<8;a++) for(const r of [0,.35,.7]){const i=Math.floor((x+r*Math.cos(a*Math.PI/4)-OX)/RES), j=Math.floor((y+r*Math.sin(a*Math.PI/4)-OY)/RES); if(i<0||j<0||i>=NX||j>=NY||occ[j*NX+i]) return false;} return true;};
+    let want=null;
+    // manipulation happens at the table: cut to the wide vantage that shows the whole cafe, aimed at Spot
+    if(lead.skill==="pick"||lead.skill==="pour"||lead.skill==="place"){
+      // stand well back on the room-centre side of Spot so the arm and the table are both in frame;
+      // the cell only has to be clear itself, and never closer than 2.2 m
+      const cx=OX+NX*RES/2, cy=OY+NY*RES/2; const dx=lead.x-cx, dy=lead.y-cy, L=Math.hypot(dx,dy)||1;
+      const cellFree=(x,y)=>{const i=Math.floor((x-OX)/RES), j=Math.floor((y-OY)/RES); return i>=0&&j>=0&&i<NX&&j<NY&&(!occ||!occ[j*NX+i]);};
+      for(const [dist,ang] of [[4.5,0],[3.6,0],[4.2,.5],[4.2,-.5],[3.0,0],[3.4,.9],[3.4,-.9],[2.4,0]]){
+        const th=Math.atan2(-dy,-dx)+ang; const x=lead.x+dist*Math.cos(th), y=lead.y+dist*Math.sin(th);
+        if(x>OX+.6&&y>OY+.6&&x<OX+NX*RES-.6&&y<OY+NY*RES-.6&&cellFree(x,y)){want=new THREE.Vector3(x,y,1.65); break;}}
+      if(!want){const th=Math.atan2(-dy,-dx); want=new THREE.Vector3(lead.x+2.4*Math.cos(th),lead.y+2.4*Math.sin(th),1.9);}}
+    if(!want) for(const [back,side,dist] of [[1,.45,3.2],[1,-.45,3.2],[1,0,3.6],[.6,1,3.0],[.6,-1,3.0],[0,1,2.8],[0,-1,2.8],[-.7,.7,3.0],[-.7,-.7,3.0],[-1,0,3.2]]){
+      const n=Math.hypot(back,side)||1; const bx=-Math.cos(lead.yaw)*back/n+Math.sin(lead.yaw)*side/n, by=-Math.sin(lead.yaw)*back/n-Math.cos(lead.yaw)*side/n;
+      const x=lead.x+bx*dist, y=lead.y+by*dist; if(free(x,y)){want=new THREE.Vector3(x,y,1.55); break;}}
+    if(!want){ // against a wall-mounted counter every stance fails: walk outward in rings until clear floor
+      outer: for(const rad of [1.6,2.2,2.8,3.4,4.2]) for(let a=0;a<12;a++){const th=lead.yaw+Math.PI+a*(Math.PI/6)*(a%2?1:-1)/1; const x=lead.x+rad*Math.cos(th), y=lead.y+rad*Math.sin(th); if(free(x,y)){want=new THREE.Vector3(x,y,1.55); break outer;}}
+      if(!want) want=new THREE.Vector3(Math.min(Math.max(lead.x,OX+.8),OX+NX*RES-.8),Math.min(Math.max(lead.y,OY+.8),OY+NY*RES-.8),3.6);}
+    eye.lerp(want,.04); camYaw+=((Math.atan2(lead.y-eye.y,lead.x-eye.x)-camYaw+Math.PI*3)%(Math.PI*2)-Math.PI)*.07;
+    const aimZ=(lead.skill==='pick'||lead.skill==='pour'||lead.skill==='place')?1.0:0.75; const tp=Math.atan2(aimZ-eye.z,Math.hypot(lead.x-eye.x,lead.y-eye.y)); camPitch+=(tp-camPitch)*.06; look();}}
 function animate(){requestAnimationFrame(animate); try{renderer&&renderer.render(scene,cam);}catch(e){}}
 async function loadBackdrop(){const w=M.world;
   if(!w.splat_url){dbg("no splat for this room"); boxGroup.visible=true; return;}
   dbg("loading the room…");
   try{const spark=await import("https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js");
+    scene.add(new spark.SparkRenderer({renderer}));          // Spark draws nothing without this in the scene
     splat=new spark.SplatMesh({url:w.splat_url, onLoad:()=>dbg("")}); splat.matrixAutoUpdate=false;
     if(arr(w.T_atlas_to_sim).length===4) splat.matrix.set(...w.T_atlas_to_sim.flat());
-    scene.add(splat); setTimeout(()=>{ if($("#dbg").textContent==="loading the room…") dbg(""); },12000);}
+    scene.add(splat); window.__splat=splat; window.__scene=scene; window.__cam=cam; window.__THREE=THREE; setTimeout(()=>{ if($("#dbg").textContent==="loading the room…") dbg(""); },12000);}
   catch(e){console.error("splat failed",e); dbg("room view unavailable: "+String(e).slice(0,60)); boxGroup.visible=true;}}
 let flip=0; addEventListener("keydown",e=>{if(e.key!=="f"||!splat)return; flip=(flip+1)%4; const s=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]][flip]; const F=new THREE.Matrix4().makeScale(...s); const T=new THREE.Matrix4(); if(arr(M.world.T_atlas_to_sim).length===4)T.set(...M.world.T_atlas_to_sim.flat()); splat.matrix.multiplyMatrices(T,F); dbg("splat flip "+flip);});
 boot();

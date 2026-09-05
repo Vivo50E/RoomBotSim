@@ -3,3 +3,19 @@
 jobs/
 __pycache__/
 *.pyc
+MUJOCO_LOG.TXT
+
+# the baked demo room ships with the repo so /demo works on a fresh clone; raw 100 MB+ splats do not
+!jobs/
+jobs/*
+!jobs/coffee/
+jobs/coffee/*
+!jobs/coffee/world.json
+!jobs/coffee/people.json
+!jobs/coffee/*_1024.jpg
+!jobs/coffee/topdown.png
+!jobs/coffee/marble/
+jobs/coffee/marble/*
+!jobs/coffee/marble/primary_clean.ply
+!jobs/coffee/marble/stage1.json
+!jobs/coffee/marble/fusion.json

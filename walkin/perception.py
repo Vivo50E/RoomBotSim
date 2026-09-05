@@ -67,8 +67,14 @@ def _valid_bbox(b, wh=None):
         u0, v0, u1, v1 = [float(x) for x in b]
     except Exception:
         return None
-    if max(abs(u0), abs(v0), abs(u1), abs(v1)) > 1.5:
-        w, h = wh if wh else (1024.0, 1024.0)
+    mx = max(abs(u0), abs(v0), abs(u1), abs(v1))
+    if mx > 1.5:
+        # Qwen-VL family answers on a 0-1000 grid regardless of raster; other models answer in pixels.
+        # Dividing a 1000-grid box by a 1024x768 raster shifted every box onto the person's feet.
+        if mx <= 1000.0:
+            w = h = 1000.0
+        else:
+            w, h = wh if wh else (1024.0, 1024.0)
         u0, u1 = u0 / w, u1 / w
         v0, v1 = v0 / h, v1 / h
     u0, v0, u1, v1 = [min(max(v, 0.0), 1.0) for v in (u0, v0, u1, v1)]

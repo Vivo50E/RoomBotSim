@@ -1074,6 +1074,7 @@ class Runtime:
                               "phase": self.runner[r.k].phase}
                              for r in self.robots.values() if r.active],
                   "people": [{"id": a.id, "x": round(a.x, 3), "y": round(a.y, 3), "yaw": round(a.yaw, 3),
+                              "vx": round(a.vx, 2), "vy": round(a.vy, 2),
                               "seated": bool(a.seated), "activity": a.activity, "thought": a.thought}
                              for a in self.cast.agents],
                   "objects": [self.object_state(o) for o in self.spawns],

@@ -1,0 +1,25 @@
+{
+ "scenes": 4,
+ "registered": [
+  {
+   "world_id": "b66cbd3e-775a-4e33-80e7-b5bf635ec677",
+   "overlap": 0.303
+  },
+  {
+   "world_id": "500e6f3f-7f61-46a4-955b-db9ba3c3ef65",
+   "overlap": 0.176
+  },
+  {
+   "world_id": "81ea8b82-7034-4ea0-8baa-a517caaf9955",
+   "overlap": 0.103
+  }
+ ],
+ "warnings": [
+  "500e6f3f-7f61-46a4-955b-db9ba3c3ef65 did not register (score 0.18), ignored",
+  "81ea8b82-7034-4ea0-8baa-a517caaf9955 did not register (score 0.10), ignored"
+ ],
+ "fuse": {
+  "scenes": 2,
+  "note": "grid too large, fusion skipped"
+ }
+}
