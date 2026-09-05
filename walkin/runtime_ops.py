@@ -37,12 +37,30 @@ def atomic_json_dump(path, value):
         raise
 
 
+def _closed_episode(path):
+    """True only when the final JSONL record is a valid episode footer.
+
+    A byte search for ``type: footer`` can rotate a live/corrupt log whose step
+    payload merely contains that text.  Episode.close writes the footer last, so
+    requiring a parseable final record is the durable closed-file contract.
+    """
+    last = None
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    last = json.loads(line)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return isinstance(last, dict) and last.get("type") == "footer"
+
+
 def rotate_episodes(job_dir, retain=EPISODE_RETAIN):
     """Compress closed older episodes, retaining newest ``retain`` as JSONL.
 
-    The current/open file (no footer) is never rotated.  ``os.replace`` makes the
-    final archive publication atomic; source data is removed only after the archive
-    was completely written.  Existing archives are retained indefinitely.
+    The current/open file (no final valid footer) is never rotated.  ``os.replace``
+    makes final archive publication atomic; source data is removed only after the
+    archive was completely written. Existing archives are retained indefinitely.
     """
     src = os.path.join(job_dir, "episodes")
     if not os.path.isdir(src):
@@ -53,9 +71,7 @@ def rotate_episodes(job_dir, retain=EPISODE_RETAIN):
             continue
         path = os.path.join(src, name)
         try:
-            with open(path, "rb") as f:
-                tail = f.read()
-            if b'"type": "footer"' not in tail and b'"type":"footer"' not in tail:
+            if not _closed_episode(path):
                 continue
             closed.append((os.path.getmtime(path), path))
         except OSError:

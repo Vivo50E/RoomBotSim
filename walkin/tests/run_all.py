@@ -1,5 +1,5 @@
 """Headless checks. python tests/run_all.py"""
-import os, sys, json, math, time, tempfile, shutil, subprocess
+import os, sys, json, math, time, tempfile, shutil, subprocess, copy, threading
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("WORLD_SOURCE", "mock")
 os.environ.pop("OPENROUTER_API_KEY", None)          # no network in tests
@@ -16,7 +16,10 @@ from planning import inflate, plan_xy, reach_grid, blocked_at, snap_free_xy
 import agents as agentsmod, commands, server, episodes as epmod
 from runtime_ops import load_jobs, rotate_episodes
 
-world, people = mtw.build("jobs/test")
+# Every generated artifact belongs to a disposable fixture, never jobs/test.
+TEST_ROOT = tempfile.mkdtemp(prefix="walkin-suite-")
+JOB_DIR = os.path.join(TEST_ROOT, "test")
+world, people = mtw.build(JOB_DIR)
 nx, ny = world["size_cells"]
 occ = agentsmod.decode(world["occupancy_b64"], nx, ny)
 origin = world["origin_xy"]
@@ -61,7 +64,7 @@ for s, tg, it, tgt in exp:
 check("commands: 5 required sentences", good == 5, f"{good}/5")
 
 # --- runtime, cast, robot
-rt = server.Runtime("test", world, people, "jobs/test")
+rt = server.Runtime("test", world, people, JOB_DIR)
 rt.brain_enabled = False
 for a in rt.cast.agents:
     a.activity = "walking"; a.seated_orig = False; a.seated = False
@@ -104,8 +107,31 @@ bumps = sum(1 for e in rt.events if "bumped" in e["text"]) - bumps0
 check("robot: navigate_to the table succeeds", bool(res and res.get("ok")), str(res))
 check("robot: few contacts crossing a room of walking people", bumps <= 3, f"{bumps} bumps")
 
+# The shared cache may reuse only the people stamp; each robot still gets its own robot stamp.
+cache_rt = server.Runtime("test", world, people, JOB_DIR)
+for _ in range(3): cache_rt.drop_robot()
+for r in cache_rt.robots.values():
+    if r.active: r.goal = tuple(lm["table"]["center_xy"])
+original_stamp, stamps = server.stamp_discs, []
+def count_stamp(*args, **kwargs):
+    stamps.append(args[1])
+    return original_stamp(*args, **kwargs)
+server.stamp_discs = count_stamp
+try:
+    for k, r in cache_rt.robots.items():
+        if r.active: cache_rt.drive_robot(k, 1.0)
+finally:
+    server.stamp_discs = original_stamp
+check("planner: shares people grid but retains robot-specific stamps", len(stamps) == 4,
+      f"stamp calls={len(stamps)} (1 people + 3 robot)")
+
+# Human teleop duration begins at this episode, rather than a preceding episode's last skill.
+human_id = rt.start_episode({"task_type": "go_to", "policy": {"kind": "human"}})
+check("human recording: teleop clock resets at episode start", human_id is not None and rt.ep_t_step == rt.t)
+rt.end_episode("aborted")
+
 # --- full oracle episode
-rt2 = server.Runtime("test", world, people, "jobs/test")
+rt2 = server.Runtime("test", world, people, JOB_DIR)
 rt2.brain_enabled = False
 eid = rt2.start_episode({"task_type": "coffee_to_person", "requester": 2, "robot_type": "spot",
                          "policy": {"kind": "scripted"}, "seed": 3, "humans": "scripted",
@@ -118,7 +144,7 @@ for i in range(int(280 / 0.01)):
     rt2.sim.step(); rt2.t += 0.01; rt2.handle_contacts()
     if rt2.ep is None:
         done = True; break
-eps = epmod.list_episodes("jobs/test")
+eps = epmod.list_episodes(JOB_DIR)
 last = next((e for e in eps if e["episode_id"] == eid), None)
 check("episode: finished", done and last is not None, f"t={rt2.t:.0f}s")
 if last:
@@ -127,7 +153,7 @@ if last:
 
 # --- recording + sft
 import tools.make_sft as ms
-n = ms.build("jobs/test/episodes", "jobs/test/sft.jsonl", relabel="oracle", include_human=True)
+n = ms.build(os.path.join(JOB_DIR, "episodes"), os.path.join(JOB_DIR, "sft.jsonl"), relabel="oracle", include_human=True)
 check("sft: examples written", n >= 5, f"{n} examples")
 
 # --- bad policy
@@ -136,7 +162,7 @@ class Bad:
     def __init__(s, seq): s.seq = list(seq)
     def act(s, obs): return s.seq.pop(0) if s.seq else {"action": "done"}
 import policy as pm
-rt3 = server.Runtime("test", world, people, "jobs/test")
+rt3 = server.Runtime("test", world, people, JOB_DIR)
 rt3.brain_enabled = False
 bad_id = rt3.start_episode({"task_type": "coffee_to_person", "requester": 2, "policy": {"kind": "scripted"},
                             "seed": 1, "max_steps": 4, "max_seconds": 90})
@@ -145,7 +171,7 @@ for i in range(int(95 / 0.01)):
     if i % 5 == 0: rt3.control_tick()
     rt3.sim.step(); rt3.t += 0.01
     if rt3.ep is None: break
-bad = next((e for e in epmod.list_episodes("jobs/test") if e["episode_id"] == bad_id), {"tags": []})
+bad = next((e for e in epmod.list_episodes(JOB_DIR) if e["episode_id"] == bad_id), {"tags": []})
 check("bad policy: picking from across the room is tagged",
       any(t.startswith("precondition:too_far") for t in bad["tags"]), str(bad["tags"]))
 
@@ -153,50 +179,75 @@ check("bad policy: picking from across the room is tagged",
 scratch = tempfile.mkdtemp(prefix="walkin-test-")
 try:
     jd = os.path.join(scratch, "reloadable"); os.makedirs(jd)
-    shutil.copy("jobs/test/world.json", os.path.join(jd, "world.json"))
-    shutil.copy("jobs/test/people.json", os.path.join(jd, "people.json"))
+    shutil.copy(os.path.join(JOB_DIR, "world.json"), os.path.join(jd, "world.json"))
+    shutil.copy(os.path.join(JOB_DIR, "people.json"), os.path.join(jd, "people.json"))
     restored = load_jobs(scratch)
     check("restart: persisted world and people reload", "reloadable" in restored and restored["reloadable"]["runtime"] is None)
+    # The boot-loaded record is operational, not merely visible in /status.
+    server.JOBS["reloadable"] = restored["reloadable"]
+    started = server.runtime_start("reloadable")
+    check("restart: boot-loaded job starts a usable runtime", started["ok"] and server.JOBS["reloadable"]["runtime"] is not None)
+    server.JOBS["reloadable"]["runtime"].stop = True
+    del server.JOBS["reloadable"]
     ed = os.path.join(jd, "episodes"); os.makedirs(ed)
     for n in range(3):
         with open(os.path.join(ed, f"e{n}.jsonl"), "w") as f:
-            f.write('{"type": "header", "episode_id": "e%d", "cfg": {}}\n' % n)
-            f.write('{"type": "footer", "success": true, "tags": [], "n_steps": 0}\n')
+            f.write('{"type": "header", "episode_id": "e%d", "cfg": {"policy": {"kind": "human"}}}\n' % n)
+            f.write('{"type": "step", "step": 1, "obs": {"task": "x"}, "action": {"action": "done"}, "result": {"ok": true}}\n')
+            f.write('{"type": "footer", "success": true, "tags": [], "n_steps": 1}\n')
         os.utime(os.path.join(ed, f"e{n}.jsonl"), (100 + n, 100 + n))
+    # A live/corrupt file containing footer text must not be mistaken for closed.
+    with open(os.path.join(ed, "live.jsonl"), "w") as f:
+        f.write('{"type": "header"}\n{"type": "step", "note": "footer"}\n')
     rotate_episodes(jd, retain=1)
     listed = epmod.list_episodes(jd)
-    check("episodes: rotation archives safely and listing includes archives",
-          len(listed) == 3 and len(os.listdir(os.path.join(ed, "archive"))) == 2)
+    exported = os.path.join(scratch, "sft.jsonl")
+    exported_n = ms.build(ed, exported, relabel="none", include_human=True)
+    check("episodes: rotation detects final footer, preserves listing and SFT data",
+          len(listed) == 4 and len(os.listdir(os.path.join(ed, "archive"))) == 2
+          and os.path.exists(os.path.join(ed, "live.jsonl")) and exported_n == 3,
+          f"listed={len(listed)} archived={len(os.listdir(os.path.join(ed, 'archive')))} sft={exported_n}")
 finally:
     shutil.rmtree(scratch)
 
 # --- batch runner must persist an episode and exit without uvicorn
-batch = subprocess.run([sys.executable, "tools/batch_run.py", "--job", "test", "--episodes", "1",
+batch = subprocess.run([sys.executable, "tools/batch_run.py", "--jobs-root", TEST_ROOT, "--job", "test", "--episodes", "1",
                         "--task", "go_to", "--max-seconds", "40"], capture_output=True, text=True, timeout=60)
 check("batch: headless runner exits and persists", batch.returncode == 0 and '"finished": true' in batch.stdout,
       batch.stderr[-160:])
+check("api: durable /api/act cancellation policy is discoverable",
+      "continue after client disconnect" in server.api_schema()["cancellation"])
 
-# --- realtime budget: 6 people and all 3 active robots keep up with wall clock
-import copy as _copy
-_perf_people = {"people": _copy.deepcopy(people["people"])}
-_PAL = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4"]
-while len(_perf_people["people"]) < 6:            # the demo room ships four; the target is six
-    _p = _copy.deepcopy(_perf_people["people"][len(_perf_people["people"]) % 4])
-    _p["id"] = len(_perf_people["people"]) + 1
-    _p["pos_xy"] = [_p["pos_xy"][0] + 0.5 * _p["id"], _p["pos_xy"][1] - 0.4 * _p["id"]]
-    _p["home_xy"] = list(_p["pos_xy"]); _p["color"] = _PAL[_p["id"] - 1]
-    _p["posture"] = "standing"; _p["activity"] = "walking"; _p["talking_to"] = None
-    _perf_people["people"].append(_p)
-perf = server.Runtime("test", world, _perf_people, "jobs/test")
+# --- realtime budget: exact 6-person/3-robot target plus a state-stream client
+_perf_people = {"people": copy.deepcopy(people["people"])}
+while len(_perf_people["people"]) < 6:
+    p = copy.deepcopy(_perf_people["people"][len(_perf_people["people"]) % 4])
+    p.update(id=len(_perf_people["people"]) + 1,
+             pos_xy=[-1.4, 1.4] if len(_perf_people["people"]) == 4 else [1.4, -1.4],
+             home_xy=[-1.4, 1.4] if len(_perf_people["people"]) == 4 else [1.4, -1.4],
+             color=server.COLORS[len(_perf_people["people"])], posture="standing", activity="walking", talking_to=None)
+    _perf_people["people"].append(p)
+perf = server.Runtime("test", world, _perf_people, JOB_DIR)
 perf.brain_enabled = False
 for _ in range(3): perf.drop_robot()
-perf.start()
+# Equivalent to a websocket sender: repeatedly copy the incremental payload and JSON serialize it at 20 Hz.
+client_stop = threading.Event()
+def consume_state_stream():
+    last = 0
+    while not client_stop.is_set():
+        st, last = perf.state_since(last)
+        if st: json.dumps(st)
+        time.sleep(.05)
+client = threading.Thread(target=consume_state_stream, daemon=True)
+perf.start(); client.start()
 wall = time.perf_counter(); time.sleep(30.1); elapsed_sim = perf.t; elapsed_wall = time.perf_counter() - wall
-perf.stop = True
+client_stop.set(); client.join(1); perf.stop = True
 _n_people = len(perf.cast.agents); _n_robots = sum(1 for r in perf.robots.values() if r.active)
-check(f"performance: 30 s wall advances >=29 s ({_n_people} people, {_n_robots} robots)",
-      elapsed_sim >= 29.0 and _n_people >= 6 and _n_robots >= 3,
+check("performance: 30 s wall advances >=29 s (6 people, 3 robots, state-stream client)",
+      elapsed_sim >= 29.0 and _n_people == 6 and _n_robots == 3,
       f"sim={elapsed_sim:.2f}s wall={elapsed_wall:.2f}s")
+
+shutil.rmtree(TEST_ROOT)
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:

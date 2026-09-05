@@ -283,6 +283,16 @@ def render_topdown(grid, landmarks, cams, path, px_per_m=60):
     return path
 
 
+@app.post("/runtime/start/{job_id}")
+def runtime_start(job_id: str):
+    """Start a persisted, already-confirmed job after a server restart."""
+    j = JOBS.get(job_id)
+    if not j or not j.get("world") or not j.get("people"):
+        raise HTTPException(404, "job not ready")
+    start_runtime(job_id)
+    return {"ok": True, "job_id": job_id}
+
+
 @app.post("/confirm/{job_id}")
 async def confirm(job_id: str, body: dict):
     j = JOBS.get(job_id)
@@ -793,6 +803,9 @@ class Runtime:
             self.ep_phase = "request"
             self.ep_step = 0
             self.ep_events = []
+            # A human may teleoperate immediately; its recorded segment starts now,
+            # not at a previous episode's skill boundary.
+            self.ep_t_step = self.t
             self.teleop_log = []
             self.policy_inflight = False
             self.pending_action = None

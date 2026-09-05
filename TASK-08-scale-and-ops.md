@@ -71,6 +71,22 @@ Also note the case adds a hard `time.sleep(30.1)` to every run, taking the suite
 a fair price for a real-time guard, but consider gating it behind a flag so the fast feedback loop stays
 fast.
 
+## Third defect, same review
+
+**The batch runner can only run the oracle.** `tools/batch_run.py` is otherwise exactly right — it loads a
+persisted job, runs N episodes at 100 Hz with no uvicorn and no wall-clock thread, converts an exhausted
+deadline into a properly closed `timeout` episode rather than leaving an open JSONL behind, and exits
+non-zero when a record is missing. But the policy is hardcoded to `{"kind": "scripted"}`.
+
+Task 05 exists to measure a model against itself before and after fine-tuning, and its first step is
+"N seeds x the chat policy, headless". With the policy fixed to the built-in oracle, this runner cannot
+produce that number at all — the oracle succeeds every time by construction.
+
+Add `--policy scripted|chat|raw`, plus `--policy-url`, `--policy-model` and a key read from the
+environment rather than the command line so it does not land in shell history. While you are there,
+`--requester` and `--robot-type` are worth exposing for the same reason. Everything else about the file
+can stay as it is.
+
 ## Done when
 
 `tests/run_all.py` includes a performance case that asserts 30 s of wall clock advances sim time by at

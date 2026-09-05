@@ -729,6 +729,12 @@ function fillSelects() {
 }
 const TASK_TEXT = {coffee_to_person:"get me a cup of coffee and bring it to me",
                    bring_object:"bring me the cup", go_to:"go to the table"};
+// Deterministic JSON used only for client-side snapshot de-duplication.
+function stableJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stableJson(value[k])}`).join(",")}}`;
+}
 $("#ttype").onchange = e => { $("#task").value = TASK_TEXT[e.target.value] || ""; };
 $("#pol").onchange = e => {
   $("#endpoint").hidden = e.target.value !== "endpoint";
@@ -771,7 +777,9 @@ function updateEpisode(ep) {
   }
   lastEpId = ep.id; M.lastEpisode = ep.id; $("#epStop").disabled = false;
   if (M.logEpisodeId !== ep.id) { M.logEpisodeId = ep.id; M.seenSteps.clear(); $("#steplog").innerHTML = ""; }
-  const key = `${ep.id}:${ep.step}:${JSON.stringify(ep.last_action || {})}:${JSON.stringify(ep.last_result || {})}`;
+  // WebSocket JSON object key order is not an identity. Canonicalize nested payloads so a
+  // repeated state snapshot cannot create a duplicate visible step.
+  const key = `${ep.id}:${ep.step}:${stableJson(ep.last_action || {})}:${stableJson(ep.last_result || {})}`;
   if (ep.last_action && ep.last_result && !M.seenSteps.has(key)) {
     M.seenSteps.add(key);
     const log = $("#steplog");
