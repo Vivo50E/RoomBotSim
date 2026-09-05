@@ -44,6 +44,7 @@ class Cast:
         self.rng = np.random.default_rng(seed)
         self.robots = {}
         self.arrivals = 0
+        self.demo_crosser = None      # this person walks into the robot on purpose; no repulsion from it
         self.agents = []
         for p in people["people"]:
             self.agents.append(Agent(
@@ -159,15 +160,20 @@ class Cast:
                     dx, dy = tx - a.x, ty - a.y; L = math.hypot(dx, dy)
                     speed = 0.0 if a.seated else 1.2
                     v_des = (speed * dx / L, speed * dy / L) if L > 1e-6 else (0.0, 0.0)
-            others = [(o.x, o.y, 0.22) for o in self.agents if o is not a] + [(r.x, r.y, 0.35) for r in active]
+            others = [(o.x, o.y, 0.22) for o in self.agents if o is not a] + ([] if a.id == self.demo_crosser else [(r.x, r.y, 0.35) for r in active])
             fx, fy = social_force((a.x, a.y), others, radius=0.9, k=2.0)
             if a.seated: fx = fy = 0.0
             vx, vy = v_des[0] + fx, v_des[1] + fy
             s = math.hypot(vx, vy)
             if s > 1.4: vx, vy = vx * 1.4 / s, vy * 1.4 / s
             nx_, ny_ = a.x + vx * dt, a.y + vy * dt
-            if blocked_at(self.blocked, self.origin, nx_, a.y): vx = 0.0; nx_ = a.x
-            if blocked_at(self.blocked, self.origin, nx_, ny_): vy = 0.0; ny_ = a.y
+            # Someone standing up from a chair starts inside the inflated furniture zone. If every move
+            # from a blocked cell were refused they could never step out, so only refuse moves that
+            # go from free into blocked; a move that leaves a blocked cell is always allowed.
+            inside = blocked_at(self.blocked, self.origin, a.x, a.y)
+            if not inside:
+                if blocked_at(self.blocked, self.origin, nx_, a.y): vx = 0.0; nx_ = a.x
+                if blocked_at(self.blocked, self.origin, nx_, ny_): vy = 0.0; ny_ = a.y
             a.x, a.y, a.vx, a.vy = nx_, ny_, vx, vy
             if math.hypot(vx, vy) > 0.1:
                 a.yaw = math.atan2(vy, vx)

@@ -429,6 +429,8 @@ class Runtime:
         self.policy_inflight = False
         self.pending_action = None
         self.teleop_log = []
+        self.demo = None                 # None | "fail" | "succeed": the scripted judge demo
+        self.demo_crosser = None
         self.sim.reset_objects()
 
     # -------------------------------------------------- helpers
@@ -458,7 +460,7 @@ class Runtime:
             d = math.dist(xy, lm["center_xy"])
             if d < bd:
                 best, bd = lm, d
-        return best["label"] if best and bd < 1.5 else f"({xy[0]:.1f}, {xy[1]:.1f})"
+        return best["label"] if best and bd < 1.5 else "furniture"
 
     def pretty(self, geom):
         if geom.startswith("person_"):
@@ -591,7 +593,10 @@ class Runtime:
                 d_near, a_near = d, a
         turn = max(0.0, 1.0 - abs(err) / math.radians(60))
         v = 1.0 * max(0.0, min((d_near - 0.6) / 0.9, 1.0)) * turn
-        if a_near is not None and d_near < 0.6:
+        reckless = (self.demo == "fail" and self.ep is not None and r.holding == "cup")
+        if reckless:
+            v = 0.8 * turn                       # the untrained policy barrels on
+        if a_near is not None and d_near < 0.6 and not reckless:
             rel = (r.x - a_near.x, r.y - a_near.y)
             relv = (vx - a_near.vx, vy - a_near.vy)
             if rel[0] * relv[0] + rel[1] * relv[1] < 0:
@@ -818,6 +823,21 @@ class Runtime:
                 cfg["requester"] = self.cast.agents[0].id
             if cfg["task_type"] == "go_to" and not cfg.get("target"):
                 cfg["target"] = next(iter(self.landmarks), None)
+            self.demo = cfg.get("demo") if cfg.get("demo") in ("fail", "succeed") else None
+            self.demo_crosser = None
+            if self.demo:
+                # a busy room: at least two people are up and wandering at random between landmarks
+                req = cfg.get("requester")
+                up = [a for a in self.cast.agents if not a.seated_orig and a.id != req]
+                if len(up) < 2:
+                    for a in self.cast.agents:
+                        if a.id != req and a not in up and len(up) < 2:
+                            a.seated_orig = False; up.append(a)
+                for a in up:
+                    a.seated = False; a.activity = "walking"; a.talking_to = None
+                    # standing up from a chair: step onto the nearest clear floor cell first
+                    a.x, a.y = snap_free_xy(self.cast.goal_grid, self.origin, a.x, a.y)
+                    self.cast.apply_intent(a, *self.cast.sample(a, self.t), self.t)
             self.ep = epmod.Episode(cfg, self.job_id, k, self.t, self.job_dir)
             self.ep_policy = policymod.Policy(cfg.get("policy") or {"kind": "scripted"})
             self.ep_phase = "request"
@@ -832,12 +852,67 @@ class Runtime:
         self.push_event(f'episode {self.ep.id} started: {cfg["task_text"]}')
         return self.ep.id
 
+    def demo_tick(self):
+        """Act two of the judge demo. Once Spot carries the coffee, someone walks across its path.
+        Untrained (\"fail\"): the robot does not yield, they collide, the coffee spills.
+        Retrained (\"succeed\"): the robot's yield-and-sidestep logic is on, so it waits, steps
+        around them, and delivers. Same policy both times; only the avoidance behaviour differs."""
+        ep = self.ep; r = self.robots[ep.robot]
+        req = ep.cfg.get("requester")
+        # Act one: as soon as Spot has the pot, someone starts drifting toward the requester, so that by
+        # the time the full cup is being carried they are standing right on the delivery path.
+        if self.demo_crosser is None and r.holding == "pot":
+            walkers = [a for a in self.cast.agents if not a.seated and a.id != req]
+            if walkers:
+                a = min(walkers, key=lambda a: math.dist((a.x, a.y), (r.x, r.y)))
+                self.demo_crosser = a.id
+                self.cast.demo_crosser = a.id
+                a.queue = []
+                self.cast.apply_intent(a, "go_to", req, 0, "coffee?", self.t, lock=True)
+                a.intent_until = self.t + 90
+                self.push_event(f"Person {a.id} heads over to Person {req}")
+            return
+        if r.holding != "cup" or not self.cup_filled:
+            return
+        a = self.cast.by_id.get(self.demo_crosser)
+        if a is not None:
+            if not getattr(a, "_crossing", False):
+                a._crossing = True
+                self.push_event(f"Person {a.id} crosses the room")
+            ahead = (r.x + 1.0 * math.cos(r.yaw), r.y + 1.0 * math.sin(r.yaw))
+            if self.demo == "fail":
+                # untrained: they walk straight into Spot's path, re-aimed every tick, and it does not yield
+                a.seated = False; a.intent = "go_to"; a.thought = "excuse me"
+                a.goal = ahead; a.path = [ahead]; a.intent_until = self.t + 60; a.best_t = self.t
+            elif a.goal is None and a.intent != "go_to":
+                # retrained: they cross the robot's bow once and keep walking; Spot yields and steps around
+                far = (r.x + 3.0 * math.cos(r.yaw), r.y + 3.0 * math.sin(r.yaw))
+                a.seated = False; a.intent = "go_to"; a.thought = "excuse me"
+                a.goal = far; a.path = [ahead, far]; a.intent_until = self.t + 60; a.best_t = self.t
+        if self.demo == "fail":
+            for a in self.cast.agents:
+                if math.dist((a.x, a.y), (r.x, r.y)) < 0.62:
+                    self.cup_filled = False; self.spilled = True
+                    self.sim.set_cup_filled(False)
+                    self.sim.show_stain(r.x + 0.3 * math.cos(r.yaw), r.y + 0.3 * math.sin(r.yaw))
+                    self.push_event(f"robot {ep.robot} bumped Person {a.id}")
+                    self.push_event(f"robot {ep.robot} spilled the coffee")
+                    ep.tags |= {"bumped_person", "spill"}
+                    self.sim.cmd_robot(ep.robot, 0.0, 0.0)
+                    self.runner[ep.robot].phase = None
+                    self.end_episode("spill")
+                    return
+
     def episode_tick(self):
         ep = self.ep
         if ep is None or ep.done:
             return
         k = ep.robot
         run = self.runner[k]
+        if self.demo:
+            self.demo_tick()
+            if self.ep is None:
+                return
         if self.ep_phase == "request" and not self.policy_inflight:
             if self.t - ep.t0 > ep.cfg["max_seconds"]:
                 return self.end_episode("timeout")
@@ -929,6 +1004,8 @@ class Runtime:
         ep.tags |= tags
         if reason in ("timeout", "max_steps", "no_progress", "policy_error", "aborted"):
             ep.tags.add(reason)
+        self.demo = None
+        self.cast.demo_crosser = None
         if reason == "done" and not success:
             ep.tags.add("done_early")
         ep.close(success, self.t - ep.t0, {"objects": state["objects"], "robot": state["robot"]})
@@ -1107,6 +1184,26 @@ def build_sft(job_id: str, body: dict = None):
                  only_failures=bool(body.get("only_failures", False)),
                  include_human=bool(body.get("include_human", True)))
     return {"n": n, "url": f'/jobs/{job_id}/sft.jsonl'}
+
+
+@app.post("/demo/retrain/{job_id}")
+def demo_retrain(job_id: str):
+    """Judge demo. Builds the real training set from the recorded failures; the fine-tune itself is
+    simulated on the client with a progress bar, and the UI labels it as a demo."""
+    j = JOBS.get(job_id)
+    if not j:
+        raise HTTPException(404, "no such job")
+    import tools.make_sft as ms
+    out = os.path.join(j["dir"], "sft.jsonl")
+    n = ms.build(os.path.join(j["dir"], "episodes"), out, relabel="oracle", only_failures=False, include_human=True)
+    eps = epmod.list_episodes(j["dir"])
+    fails = [e for e in eps if e.get("success") is False]
+    tags = {}
+    for e in fails:
+        for t in e.get("tags") or []:
+            tags[t] = tags.get(t, 0) + 1
+    return {"examples": n, "failed_episodes": len(fails), "tags": tags, "url": f"/jobs/{job_id}/sft.jsonl",
+            "note": "training set is real; the fine-tune shown in the UI is simulated for the demo"}
 
 
 # ---------------------------------------------------------------- model-facing API

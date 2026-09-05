@@ -168,31 +168,80 @@ def on_what(world, obj, half_h):
     return None
 
 
+def _surface_candidates(world, lm, res=0.05):
+    """Points inside a landmark footprint that actually have a box under them at graspable height."""
+    cx, cy = lm["center_xy"]; sx, sy = lm["size_xy"]
+    out = []
+    nx = max(int(sx / res), 1); ny = max(int(sy / res), 1)
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            x = cx - sx / 2 + i * sx / max(nx, 1)
+            y = cy - sy / 2 + j * sy / max(ny, 1)
+            h = surface_top(world, (x, y))
+            if 0.35 <= h <= 1.35:                 # table and counter height, not the floor or a wall
+                out.append((x, y, h))
+    return out
+
+
 def spawn_objects(world):
-    """Put the pot and cup on the counter (else a table), just inside its front edge."""
+    """Put the pot and cup on a real surface the robot can reach.
+
+    The earlier version walked inward from a landmark's front edge and, failing to find anything, fell
+    back to assuming 0.75 m. On a reconstructed room that puts the coffee in mid-air: it drops to the
+    floor and every pour then fails `cup_on_floor` forever. So only ever spawn where a box really is.
+    """
     lms = world["landmarks"]
-    lm = next((l for l in lms if l["label"].startswith("counter")), None) \
-        or next((l for l in lms if l["label"].startswith("table") or l["label"].startswith("desk")), None) \
-        or (max(lms, key=lambda l: l["size_xy"][0] * l["size_xy"][1]) if lms else None)
     ox, oy = world["origin_xy"]; nx, ny = world["size_cells"]; res = world["resolution_m"]
     center = np.array([ox + nx * res / 2, oy + ny * res / 2])
-    if lm is None:
+
+    ranked = sorted(lms, key=lambda l: (0 if l["label"].startswith("counter") else
+                                        1 if l["label"].startswith(("table", "desk")) else 2,
+                                        -l["size_xy"][0] * l["size_xy"][1]))
+    best = None
+    for lm in ranked:
+        cand = _surface_candidates(world, lm)
+        if not cand:
+            continue
+        c = np.array(lm["center_xy"], float)
+        toward = center - c; n = np.linalg.norm(toward)
+        toward = toward / n if n > 1e-6 else np.array([1.0, 0.0])
+        # nearest the room-facing edge, so a robot can stand in front of it
+        cand.sort(key=lambda p: -float(np.dot(np.array(p[:2]) - c, toward)))
+        best = (lm, cand)
+        break
+
+    if best is None:
+        # no labelled landmark has a usable top: take the largest graspable-height obstacle in the room
+        obs = [o for o in world["obstacles"] if 0.35 <= o["height_m"] <= 1.35]
+        if obs:
+            o = max(obs, key=lambda o: o["size_xy"][0] * o["size_xy"][1])
+            fake = dict(center_xy=o["center_xy"], size_xy=o["size_xy"], label="surface")
+            cand = _surface_candidates(world, fake)
+            if cand:
+                best = (fake, cand)
+    if best is None:
         p = center + np.array([0.5, 0.0])
         return {"pot": (float(p[0] - 0.18), float(p[1]), 0.86), "cup": (float(p[0] + 0.18), float(p[1]), 0.81)}
-    c = np.array(lm["center_xy"], float); sx, sy = lm["size_xy"]
+
+    lm, cand = best
+    c = np.array(lm["center_xy"], float)
     toward = center - c; n = np.linalg.norm(toward)
     toward = toward / n if n > 1e-6 else np.array([1.0, 0.0])
-    t_exit = min(sx / 2 / max(abs(toward[0]), 1e-6), sy / 2 / max(abs(toward[1]), 1e-6))
-    edge = c + toward * (t_exit - 0.15)
-    for _ in range(12):
-        if surface_top(world, edge) > 0 or np.linalg.norm(edge - c) <= 0.1:
-            break
-        edge = edge - toward * 0.05
     along = np.array([-toward[1], toward[0]])
-    top = surface_top(world, edge) or 0.75
-    pot = edge - 0.18 * along; cup = edge + 0.18 * along
-    return {"pot": (float(pot[0]), float(pot[1]), top + 0.10 + 0.01),
-            "cup": (float(cup[0]), float(cup[1]), top + 0.05 + 0.01)}
+    edge = np.array(cand[0][:2]); top = cand[0][2]
+
+    def settle(p):
+        """Nudge along the surface until the spot still has a box under it."""
+        for k in range(8):
+            q = p - along * 0.04 * k if k % 2 else p + along * 0.04 * k
+            if surface_top(world, (q[0], q[1])) >= top - 0.05:
+                return q, surface_top(world, (q[0], q[1]))
+        return p, top
+
+    pot_xy, pot_h = settle(edge - 0.16 * along)
+    cup_xy, cup_h = settle(edge + 0.16 * along)
+    return {"pot": (float(pot_xy[0]), float(pot_xy[1]), pot_h + 0.10 + 0.01),
+            "cup": (float(cup_xy[0]), float(cup_xy[1]), cup_h + 0.05 + 0.01)}
 
 
 # ---------------------------------------------------------------- wrapper

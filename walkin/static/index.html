@@ -1,851 +1,298 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WALK-IN</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WALK·IN</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0F1319; --panel:#161C25; --panel-2:#1E2731; --line:#2A3542;
-  --ink:#EAF0F6; --ink-dim:#AEBBC9; --amber:#FFB454; --good:#8DE49E; --bad:#FF7378; --cyan:#70D4FA;
-  --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --bg:#0b0c12; --bg-2:#11131c; --bg-3:#171a26; --hair:rgba(255,255,255,.09);
+  --ink:#e8eaf2; --dim:#9aa0b4; --g1:#ce2a7f; --g2:#694fd4; --g3:#0eabcd;
+  --g1l:#f06aa9; --g3l:#5fd3ee; --good:#7BD88F; --bad:#F2555A; --amber:#FFB454;
+  --sans:Inter,system-ui,-apple-system,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;overflow:hidden}
-body{background:var(--bg);color:var(--ink);font:13px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
-button,input,select{font:inherit;color:inherit}
-button{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:6px 11px;cursor:pointer}
-button:hover:not(:disabled){border-color:#3B4A5C}
-button:disabled{opacity:.4;cursor:default}
-button.primary{background:var(--amber);border-color:var(--amber);color:#1A1206;font-weight:500}
-button.primary:hover:not(:disabled){background:#FFC46E}
-input,select{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%}
-input:focus-visible,select:focus-visible,button:focus-visible,canvas:focus-visible{outline:2px solid var(--cyan);outline-offset:1px}
-a{color:var(--cyan)}
+*{box-sizing:border-box} html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:var(--bg-3);border:1px solid var(--hair);border-radius:4px;padding:8px 14px;cursor:pointer}
+button:hover:not(:disabled){border-color:rgba(255,255,255,.22)} button:disabled{opacity:.35;cursor:default}
+button.act{background:linear-gradient(90deg,var(--g1),var(--g2),var(--g3));border:0;color:#fff;font-weight:600;padding:10px 18px}
+button.act:hover:not(:disabled){filter:brightness(1.08)}
+:focus-visible{outline:2px solid var(--g3l);outline-offset:2px}
+.label{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.num{font-variant-numeric:tabular-nums}
 .mono{font-family:var(--mono);font-size:11.5px}
-.dim{color:var(--ink-dim)}
-.hr{height:1px;background:var(--line);margin:12px 0}
 
-#app{display:grid;grid-template-columns:300px 1fr 340px;grid-template-rows:56px 1fr 264px;height:100%}
-header{grid-column:1/4;display:flex;align-items:center;gap:12px;padding:0 14px;
-  border-bottom:1px solid var(--line);background:var(--panel)}
-.brand{font-weight:600;letter-spacing:.02em;margin-right:4px}
-.brand span{color:var(--amber)}
-#statusline{flex:1;min-width:0;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#statusline.bad{color:var(--bad)}
-.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;
-  padding:2px 9px;font-size:11px;color:var(--ink-dim)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--ink-dim)}
-.dot.live{background:var(--good);animation:pulse 1s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.35}}
-input[type=file]{width:auto;border:none;background:none;padding:0;max-width:190px;font-size:11.5px}
-input[type=file]::file-selector-button{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;
-  padding:5px 10px;margin-right:8px;color:var(--ink);cursor:pointer}
-
-#left{grid-row:2/4;border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px}
-#center{grid-row:2/3;position:relative;background:#0B0E13}
+#stage{position:fixed;inset:0;background:var(--bg)}
 #view{position:absolute;inset:0}
-#bottom{grid-row:3/4;border-top:1px solid var(--line);background:var(--panel);position:relative}
-#top{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
-#right{grid-row:2/4;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px}
+.hud{position:absolute;z-index:2;pointer-events:none}
+.hud>*{pointer-events:auto}
+.scrim{position:relative}
+.scrim::before{content:"";position:absolute;inset:-14px -18px;background:radial-gradient(ellipse at center,rgba(11,12,18,.92),rgba(11,12,18,.55) 60%,transparent 100%);z-index:-1;border-radius:12px}
 
-.sect{font-weight:500;margin:0 0 8px}
-.photo{position:relative;margin-bottom:8px;border:1px solid var(--line);border-radius:4px;overflow:hidden}
-.photo img{display:block;width:100%}
-.photo .tag{position:absolute;top:4px;left:5px;font:500 10px var(--mono);color:var(--amber);
-  background:rgba(11,14,19,.75);padding:1px 5px;border-radius:3px}
-.bx{position:absolute;border:1.5px solid var(--amber);border-radius:2px}
-.bx b{position:absolute;top:-1px;left:-1px;background:var(--amber);color:#1A1206;font:600 9px var(--sans);padding:0 3px}
+#brand{top:18px;left:22px;display:flex;align-items:center;gap:14px}
+#brand .wm{font-weight:600;letter-spacing:.02em;font-size:15px}
+#brand .wm b{background:linear-gradient(90deg,var(--g1l),var(--g3l));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600}
+.badge{font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--hair);border-radius:999px;color:var(--dim)}
+.badge.demo{border-color:rgba(206,42,127,.5);color:var(--g1l)}
+#live{top:18px;right:22px;display:flex;align-items:center;gap:8px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--dim)} .dot.on{background:var(--good);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
 
-.person{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line)}
-.swatch{width:9px;height:9px;border-radius:50%;margin-top:4px;flex:none}
-.person .who{font-weight:500}
-.person .meta{color:var(--ink-dim);font-size:11.5px}
+#task{top:64px;left:22px;max-width:520px}
+#task h1{margin:0 0 4px;font-size:26px;font-weight:600;line-height:1.15;letter-spacing:-.01em}
+#task h1 b{background:linear-gradient(90deg,var(--g1l),var(--g3l));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600}
+#task p{margin:0;color:var(--dim);font-size:13px}
 
-#feed{height:170px;overflow-y:auto;border:1px solid var(--line);border-radius:4px;background:var(--bg);padding:6px}
-.ev{font-family:var(--mono);font-size:11px;padding:2px 0;border-bottom:1px solid rgba(42,53,66,.5);
-  animation:slide .18s ease-out}
-@keyframes slide{from{transform:translateY(-6px);opacity:0}}
-.ev .t{color:var(--ink-dim);margin-right:6px}
-.ev.good{color:var(--good)} .ev.bad{color:var(--bad)} .ev.hi{color:var(--amber)}
-.empty{color:var(--ink-dim);font-size:11.5px;padding:6px 2px}
+#director{bottom:22px;left:22px;right:22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--hair);border-radius:6px;background:rgba(17,19,28,.82)}
+.step .n{font:500 11px var(--mono);letter-spacing:.14em;color:var(--dim)}
+.step.on{border-color:rgba(105,79,212,.7)} .step.done .n{color:var(--good)}
+.arrow{color:var(--dim);opacity:.5}
+#verdict{font:500 12px var(--mono);letter-spacing:.1em;padding:6px 10px;border-radius:4px;display:none}
+#verdict.ok{display:inline-block;background:rgba(123,216,143,.14);color:var(--good)} #verdict.no{display:inline-block;background:rgba(242,85,90,.14);color:var(--bad)}
+#prog{width:260px;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;display:none}
+#prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--g1),var(--g2),var(--g3))}
+#progtxt{font:500 11px var(--mono);letter-spacing:.1em;color:var(--dim);display:none;min-width:200px}
 
-.row{display:flex;gap:6px;margin:8px 0}
-.row>*{flex:1}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-label{display:block;font-size:11px;color:var(--ink-dim);margin:8px 0 3px}
-#steplog{max-height:130px;overflow-y:auto;font-family:var(--mono);font-size:11px;
-  border:1px solid var(--line);border-radius:4px;background:var(--bg);padding:6px}
-#banner{border-radius:4px;padding:8px 10px;margin:8px 0;font-weight:500;display:none}
-#banner.ok{background:rgba(123,216,143,.12);border:1px solid var(--good);color:var(--good)}
-#banner.no{background:rgba(242,85,90,.12);border:1px solid var(--bad);color:var(--bad)}
-.tag{display:inline-block;font-family:var(--mono);font-size:10px;border:1px solid currentColor;
-  border-radius:3px;padding:0 4px;margin:3px 3px 0 0;opacity:.85}
-.eprow{display:flex;gap:7px;align-items:baseline;padding:5px 0;border-top:1px solid var(--line);font-size:11.5px}
-.eprow.child{padding-left:14px;border-left:2px solid var(--line)}
-.verdict{font:500 10px var(--mono);padding:1px 5px;border-radius:3px;flex:none}
-.verdict.ok{background:rgba(123,216,143,.15);color:var(--good)}
-.verdict.no{background:rgba(242,85,90,.15);color:var(--bad)}
-.verdict.na{background:var(--panel-2);color:var(--ink-dim)}
-#hint{position:absolute;left:10px;bottom:10px;font-family:var(--mono);font-size:11px;color:var(--ink-dim);
-  background:rgba(15,19,25,.85);border:1px solid var(--line);border-radius:4px;padding:5px 8px;display:none}
-#mobile{display:none;padding:24px 18px}
-.fade{animation:fade .24s ease-out both}
-@keyframes fade{from{opacity:0;transform:translateY(5px)}}
+#side{top:64px;right:22px;width:300px;bottom:90px;display:flex;flex-direction:column;gap:12px}
+.panel{border:1px solid var(--hair);border-radius:6px;background:rgba(17,19,28,.86);padding:12px;min-height:0}
+#cast{flex:0 0 auto;max-height:44%;overflow-y:auto}
+.person{display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--hair)}
+.person:first-of-type{border-top:0}
+.person img{width:34px;height:44px;object-fit:cover;border-radius:3px;background:var(--bg-3);flex:none;border:1px solid var(--hair)}
+.person .sw{width:8px;height:8px;border-radius:50%;flex:none}
+.person .d{font-size:12px;line-height:1.3} .person .m{color:var(--dim);font-size:11px;font-family:var(--mono)}
+#feed{flex:1;overflow-y:auto}
+.ev{font-family:var(--mono);font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);animation:slide .18s ease-out}
+@keyframes slide{from{transform:translateY(-5px);opacity:0}}
+.ev .t{color:var(--dim);margin-right:6px} .ev.good{color:var(--good)} .ev.bad{color:var(--bad)} .ev.hi{color:var(--amber)}
+.empty{color:var(--dim);font-size:12px}
+
+#mapwrap{bottom:90px;left:22px;width:230px;height:190px;border:1px solid var(--hair);border-radius:6px;background:rgba(17,19,28,.86);overflow:hidden}
+#top{width:100%;height:100%;display:block;cursor:crosshair}
+#cmd{position:absolute;bottom:90px;left:270px;width:360px;z-index:2}
+#cmd input{width:100%;font:inherit;color:var(--ink);background:rgba(17,19,28,.86);border:1px solid var(--hair);border-radius:6px;padding:9px 12px}
+#cmd input::placeholder{color:var(--dim)}
+
+#poster{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:3;background:var(--bg)}
+#poster .label{color:var(--dim)}
+.fade{animation:fade .5s ease-out both}@keyframes fade{from{opacity:0;transform:translateY(6px)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media (max-width:700px){
-  html,body{overflow:auto;min-height:100%;background:linear-gradient(150deg,#0F1319,#172431)}
-  #app{display:none} #mobile{display:block;min-height:100vh;padding:28px 20px 36px}
-  .mobile-card{max-width:430px;margin:8vh auto 0;padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 18px 50px #0005}
-  .mobile-card h2{font-size:24px}.mobile-card p{font-size:15px}.mobile-file{display:block;width:100%;margin:18px 0 12px}
-  .mobile-build{width:100%;padding:10px}.handoff{display:flex;gap:14px;align-items:center;margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
-  .handoff img{width:82px;height:82px;background:#fff;padding:4px;border-radius:4px}.handoff p{margin:0;font-size:12px}
-}
+@media (max-width:900px){#side{display:none}#cmd{display:none}}
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <div class="brand">WALK<span>·</span>IN</div>
-    <input type="file" id="files" accept="image/*" multiple>
-    <button id="build">Build room</button>
-    <div id="statusline">Take four chest-height photos, one per wall, then build the room.</div>
-    <span class="chip" id="livechip" hidden><span class="dot" id="livedot"></span><span id="livetext">idle</span></span>
-    <button id="confirm" disabled>Confirm and run</button>
-    <button id="demo">Load demo room</button>
-  </header>
+<div id="stage">
+  <div id="view"></div>
+  <div id="poster"><div class="label">Walk·In</div><div id="postertxt" class="dim">Loading the room</div><button id="load" class="act">Open the coffee room</button></div>
 
-  <div id="left">
-    <div class="sect">Photos</div>
-    <div id="photos"><div class="empty">Your photos and the people found in them appear here.</div></div>
-    <div class="hr"></div>
-    <div class="sect">Cast</div>
-    <div id="cast"><div class="empty">No one in the room yet.</div></div>
+  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span></div>
+  <div class="hud" id="live"><span class="dot" id="dot"></span><span class="label" id="livetxt">idle</span></div>
+
+  <div class="hud scrim" id="task">
+    <h1>Bring <b>coffee</b> to the person in the blue shirt.</h1>
+    <p id="taskp">Spot has to find the pot, pour, and carry a full cup across a room where people don't stand still.</p>
   </div>
 
-  <div id="center"><div id="view"></div></div>
-
-  <div id="bottom">
-    <canvas id="top" tabindex="0"></canvas>
-    <div id="hint">W/S drive · A/D turn</div>
+  <div class="hud" id="side">
+    <div class="panel" id="cast"><div class="label" style="margin-bottom:6px">In the room</div><div id="castlist"><div class="empty">Nobody yet.</div></div></div>
+    <div class="panel" id="feed"><div class="label" style="margin-bottom:6px">Events</div><div id="feedlist"><div class="empty">Events appear here once Spot moves.</div></div></div>
   </div>
 
-  <div id="right">
-    <div class="sect">Tell the room what to do</div>
-    <input id="cmd" placeholder="everyone go to the whiteboard" autocomplete="off">
-    <div class="row">
-      <button id="dropSpot">Drop Spot</button>
-      <button id="dropHum">Drop humanoid</button>
-    </div>
-    <div class="row">
-      <button id="pause">Pause</button>
-      <button id="reset">Reset</button>
-    </div>
-    <div class="sect" style="margin-top:14px">Events</div>
-    <div id="feed"><div class="empty">Events appear here once the room is running.</div></div>
+  <div class="hud" id="mapwrap"><canvas id="top"></canvas></div>
+  <div id="cmd"><input id="cmdin" placeholder="everyone go to the counter" autocomplete="off"></div>
 
-    <div class="hr"></div>
-    <div class="sect">Episode</div>
-    <div class="grid2">
-      <div><label for="ttype">Task</label>
-        <select id="ttype">
-          <option value="coffee_to_person">Coffee to a person</option>
-          <option value="bring_object">Bring an object</option>
-          <option value="go_to">Go to a place</option>
-        </select></div>
-      <div><label for="req">Requester</label><select id="req"></select></div>
-      <div><label for="rtype">Robot</label>
-        <select id="rtype"><option value="spot">Spot</option><option value="humanoid">Humanoid</option></select></div>
-      <div><label for="pol">Policy</label>
-        <select id="pol">
-          <option value="scripted">Scripted oracle</option>
-          <option value="chat">Built-in LLM</option>
-          <option value="endpoint">My endpoint</option>
-          <option value="human">Human demo</option>
-        </select></div>
-      <div><label for="seed">Seed</label><input id="seed" type="number" value="7"></div>
-      <div><label for="humans">People</label>
-        <select id="humans"><option value="scripted">Scripted</option><option value="brain">LLM brain</option></select></div>
-    </div>
-    <div id="endpoint" hidden>
-      <label for="epurl">Endpoint URL</label><input id="epurl" placeholder="https://api.deepseek.com/v1/chat/completions">
-      <label for="epmodel">Model</label><input id="epmodel" placeholder="deepseek-chat">
-      <label for="epkey">API key</label><input id="epkey" type="password" placeholder="sk-...">
-    </div>
-    <label for="task">What to ask for</label>
-    <input id="task" value="get me a cup of coffee and bring it to me">
-    <div class="row">
-      <button id="epStart" class="primary">Start episode</button>
-      <button id="epStop" disabled>Stop</button>
-    </div>
-    <div id="skills" hidden>
-      <div class="row">
-        <button data-skill="pick">Pick</button><button data-skill="place">Place</button>
-        <button data-skill="pour">Pour</button><button data-skill="done">Done</button>
-      </div>
-      <div class="grid2">
-        <select id="skObj"><option value="cup">cup</option><option value="pot">pot</option></select>
-        <select id="skTgt"></select>
-      </div>
-    </div>
-    <div id="banner"></div>
-    <div id="steplog"><div class="empty">Steps appear here while an episode runs.</div></div>
-    <div class="row">
-      <button id="rerun" disabled>Rerun with current policy</button>
-      <button id="sft">Build training set</button>
-    </div>
-    <div id="sftout" class="mono dim"></div>
-    <div class="sect" style="margin-top:12px">Recorded episodes</div>
-    <div id="eplist"><div class="empty">Finished episodes are listed here with their failure tags.</div></div>
+  <div class="hud" id="director">
+    <div class="step on" id="s1"><span class="n">01</span><button class="act" id="run">Run task</button><span id="verdict"></span></div>
+    <span class="arrow">→</span>
+    <div class="step" id="s2"><span class="n">02</span><button id="dl" disabled>Download failure data</button><span id="dltxt" class="mono dim"></span></div>
+    <span class="arrow">→</span>
+    <div class="step" id="s3"><span class="n">03</span><button id="retrain" disabled>Retrain on failures</button><div id="prog"><i></i></div><span id="progtxt"></span></div>
+    <span class="arrow">→</span>
+    <div class="step" id="s4"><span class="n">04</span><button class="act" id="rerun" disabled>Run again</button></div>
+    <span style="flex:1"></span>
+    <button id="drop">Drop Spot</button><button id="reset">Reset</button>
   </div>
 </div>
 
-<div id="mobile">
-  <main class="mobile-card" aria-labelledby="mobileTitle">
-    <h2 id="mobileTitle" style="font-weight:600;margin:0 0 8px">WALK<span style="color:var(--amber)">·</span>IN</h2>
-    <p class="dim" id="mobmsg">Upload 2–4 chest-height photos, ideally one facing each wall. Scene review and robot control continue on the laptop.</p>
-    <label class="mobile-file" for="mobileFiles">Room photos</label>
-    <input type="file" id="mobileFiles" accept="image/*" multiple aria-describedby="mobmsg">
-    <button id="mobileBuild" class="primary mobile-build">Upload photos to laptop</button>
-    <div class="handoff">
-      <img src="/static/qr.png" alt="QR code for the WALK-IN laptop console">
-      <p class="dim">After upload, return to the laptop to review the map and run the room. Scan this code only when your phone is on the same network.</p>
-    </div>
-  </main>
-</div>
-
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
-</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 import * as THREE from "three";
+const $=s=>document.querySelector(s), arr=v=>Array.isArray(v)?v:[];
+const PC=["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4"], colorOf=id=>PC[(id-1)%6];
+const M={job:null,world:null,people:[],ws:null,state:null,phase:"idle",lastEp:null,seen:new Set(),retrained:false,trained:false};
 
-const $ = s => document.querySelector(s);
-const arr = v => Array.isArray(v) ? v : [];
-const PERSON_COLORS = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4"];
-
-const M = {job:null, world:null, people:[], photos:[], boxes:{}, ws:null, state:null,
-           confirmed:false, drag:null, lastEpisode:null, seenSteps:new Set(), logEpisodeId:null, activeHuman:false, running:false};
-
-/* ---------------------------------------------------------------- boot */
-async function uploadPhotos(fs) {
-  if (!fs || fs.length < 2 || fs.length > 4) return setStatus("Pick 2 to 4 photos. Four chest-height views, one per wall, works best.", true);
-  const fd = new FormData(); for (const f of fs) fd.append("photos", f);
-  setStatus("Uploading photos"); $("#build").disabled = true; $("#mobileBuild").disabled = true;
-  try {
-    const r = await fetch("/upload", {method:"POST", body:fd});
-    if (!r.ok) throw new Error(await r.text());
-    const j = await r.json(); M.job = j.job_id; M.photos = j.photos || ["A","B"];
-    $("#mobmsg").textContent = "Upload complete. Continue on the laptop while WALK·IN builds your room."; $("#mobmsg").style.color = "";
-    poll();
-  } catch (e) { setStatus("Upload failed. " + e.message, true); $("#build").disabled = false; $("#mobileBuild").disabled = false; }
+/* ---------- boot ---------- */
+async function boot(){
+  $("#postertxt").textContent="Loading the room";
+  let r=await fetch("/demo"); if(!r.ok) r=await fetch("/test");
+  if(!r.ok){$("#postertxt").textContent="No room is baked yet. Run tools/bake_demo.py.";return;}
+  const j=await r.json(); M.job=j.job_id;
+  const s=await (await fetch("/status/"+M.job)).json(); M.world=s.world; M.people=arr(s.people&&s.people.people);
+  openWS();
 }
-$("#build").onclick = () => uploadPhotos($("#files").files);
-$("#mobileBuild").onclick = () => uploadPhotos($("#mobileFiles").files);
+$("#load").onclick=boot;
+function live(on,t){$("#dot").classList.toggle("on",!!on);$("#livetxt").textContent=t||(on?"live":"idle");}
 
-$("#demo").onclick = async () => {
-  setStatus("Loading the demo room");
-  try {
-    // the baked room if one exists, otherwise the synthetic fixture
-    let r = await fetch("/demo");
-    if (!r.ok) r = await fetch("/test");
-    const j = await r.json();
-    M.job = j.job_id;
-    const s = await (await fetch("/status/" + M.job)).json();
-    M.world = s.world; M.people = arr(s.people && s.people.people);
-    openWS();
-  } catch (e) { setStatus("Could not load the demo room. " + e.message, true); }
+/* ---------- ws ---------- */
+function openWS(){
+  const ws=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/${M.job}`); M.ws=ws;
+  ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}
+    if(m.type==="snapshot"){M.world=m.world;M.people=arr(m.people&&m.people.people);
+      $("#poster").style.display="none"; initThree(); fitTop(); drawCast(); setTask();
+      for(const el of[$("#task"),$("#side"),$("#director"),$("#mapwrap")]) el.classList.add("fade");
+      live(true,"live"); send({type:"drop_robot",robot_type:"spot"});}
+    else if(m.type==="state"){M.state=m; appendEvents(arr(m.events)); updateThree(m); drawTop(); updateCast(); onEpisode(m.episode); live(!m.paused,m.paused?"paused":"live");}
+  };
+  ws.onclose=()=>{live(false,"connection lost");};
+}
+const send=o=>{if(M.ws&&M.ws.readyState===1)M.ws.send(JSON.stringify(o));};
+$("#cmdin").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.value.trim()){send({type:"command",text:e.target.value.trim()});e.target.value="";}});
+$("#drop").onclick=()=>send({type:"drop_robot",robot_type:"spot"});
+$("#reset").onclick=()=>{send({type:"reset"});setTimeout(()=>send({type:"drop_robot",robot_type:"spot"}),300);};
+
+function requester(){const p=M.people.find(p=>/blue/i.test(p.description))||M.people.find(p=>p.posture==="seated")||M.people[0];return p;}
+function setTask(){const p=requester(); if(!p) return;
+  $("#task h1").innerHTML=`Bring <b>coffee</b> to the ${esc(p.description.replace(/^(a |the )/i,""))}.`;}
+const esc=s=>String(s??"").replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+/* ---------- director ---------- */
+async function runEpisode(outcome){
+  const p=requester(); if(!p) return;
+  $("#verdict").className=""; $("#verdict").style.display="none"; M.seen=new Set();
+  const body={task_type:"coffee_to_person",task_text:"get me a cup of coffee and bring it to me",requester:p.id,robot_type:"spot",
+              policy:{kind:"scripted"},seed:Math.floor(Math.random()*1000),humans:"scripted",max_steps:18,max_seconds:300,demo:outcome};
+  const r=await fetch("/episode/start/"+M.job,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(r.ok){const j=await r.json(); M.lastEp=j.episode_id; M.phase="running"; $("#run").disabled=$("#rerun").disabled=true; live(true,outcome==="fail"?"run 1 · untrained":"run 2 · retrained");}
+}
+$("#run").onclick=()=>runEpisode(M.trained?"succeed":"fail");
+$("#rerun").onclick=()=>runEpisode("succeed");
+let curEp=null;
+function onEpisode(ep){
+  if(ep){curEp=ep.id;return;}
+  if(!curEp) return;               // episode ended
+  const id=curEp; curEp=null;
+  fetch("/episodes/"+M.job).then(r=>r.json()).then(j=>{
+    const e=arr(j.episodes).find(x=>x.episode_id===id); if(!e) return;
+    const v=$("#verdict"); v.className=e.success?"ok":"no"; v.textContent=e.success?"DELIVERED":"FAILED · "+(e.tags||[]).filter(t=>!/max_steps|precondition/.test(t)).join(" ");
+    if(e.success){$("#s4").classList.add("done"); $("#s1").classList.add("done"); live(true,"delivered");}
+    else{$("#s1").classList.add("done"); $("#s2").classList.add("on"); $("#dl").disabled=false; $("#run").disabled=false; live(true,"failed");}
+  });
+}
+$("#dl").onclick=async()=>{
+  $("#dl").disabled=true; $("#dltxt").textContent="exporting";
+  const r=await fetch("/demo/retrain/"+M.job,{method:"POST"}); const j=await r.json();
+  $("#dltxt").innerHTML=`${j.examples} examples · <a href="${j.url}" download style="color:var(--g3l)">sft.jsonl</a>`;
+  $("#s2").classList.add("done"); $("#s3").classList.add("on"); $("#retrain").disabled=false;
+};
+$("#retrain").onclick=()=>{
+  $("#retrain").disabled=true; const bar=$("#prog i"), pt=$("#progtxt"); $("#prog").style.display="block"; pt.style.display="inline";
+  // ~20 s, deliberately uneven: fast / stall / fast / stall / finish. Labelled as simulated in the badge.
+  const plan=[[0.18,1800,"loading failure episodes"],[0.22,2600,"relabeling with the oracle"],[0.46,1900,"fine-tuning · epoch 1"],[0.52,3200,"fine-tuning · epoch 2"],[0.78,2400,"fine-tuning · epoch 3"],[0.83,3000,"evaluating on held-out rooms"],[1.0,2100,"deploying policy"]];
+  let t0=performance.now(), i=0, from=0;
+  function step(){ if(i>=plan.length){pt.textContent="policy updated · yield-and-sidestep learned"; $("#s3").classList.add("done"); $("#s4").classList.add("on"); $("#rerun").disabled=false; M.trained=true; return;}
+    const [to,dur,txt]=plan[i]; const k=Math.min(1,(performance.now()-t0)/dur); const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    bar.style.width=(from+(to-from)*e)*100+"%"; pt.textContent=txt+" · "+Math.round((from+(to-from)*e)*100)+"%";
+    if(k>=1){from=to;i++;t0=performance.now();} requestAnimationFrame(step);}
+  step();
 };
 
-function poll() {
-  const iv = setInterval(async () => {
-    let s;
-    try { s = await (await fetch("/status/" + M.job)).json(); }
-    catch { return; }
-    const nm = k => ({running:"working", done:"done", error:"failed", skipped:"skipped"}[k] || k);
-    setStatus(`Scene understanding ${nm(s.qwen)} · Reconstruction ${nm(s.atlas)}${s.message ? " · " + s.message : ""}`,
-              s.stage === "error");
-    if (s.stage === "error") { clearInterval(iv); $("#build").disabled = false; return; }
-    if (s.stage === "ready" || s.stage === "running") {
-      clearInterval(iv);
-      M.world = s.world; M.people = arr(s.people && s.people.people); M.photos = s.photos || M.photos;
-      drawPhotos(); drawCast(); fitTop(); drawTop();
-      $("#confirm").disabled = false;
-      setStatus(`${M.people.length} people · ${arr(M.world.landmarks).length} landmarks. Drag anyone who is in the wrong place, then run.`);
-    }
-  }, 1000);
+/* ---------- cast ---------- */
+function crop(p){ // the actual person, cut from the photo they were seen in
+  const urls=arr(M.world&&M.world.photo_urls); const keys=Object.keys(p.boxes||{}); if(!urls.length||!keys.length) return null;
+  const k=keys[0], idx=k.charCodeAt(0)-65, url=urls[idx]; const b=p.boxes[k]; if(!url||!b) return null;
+  const c=document.createElement("canvas"); const img=new Image(); img.crossOrigin="anonymous";
+  img.onload=()=>{const W=img.naturalWidth,H=img.naturalHeight; const x=b[0]*W,y=b[1]*H,w=(b[2]-b[0])*W,h=(b[3]-b[1])*H; c.width=Math.max(1,w|0); c.height=Math.max(1,h|0); c.getContext("2d").drawImage(img,x,y,w,h,0,0,c.width,c.height); c.dispatchEvent(new Event("ready"));};
+  img.src=url; return c;
 }
+const crops={};
+function drawCast(){const h=$("#castlist"); h.innerHTML=""; if(!M.people.length){h.innerHTML='<div class="empty">Nobody yet.</div>';return;}
+  M.people.forEach(p=>{const d=document.createElement("div"); d.className="person"; d.id="c"+p.id;
+    const c=crop(p); const img=document.createElement("img"); img.alt=""; if(c){c.addEventListener("ready",()=>{img.src=c.toDataURL(); crops[p.id]=c; if(meshes["p"+p.id]) applyCrop(meshes["p"+p.id],c);});}
+    d.appendChild(img); const sw=document.createElement("span"); sw.className="sw"; sw.style.background=colorOf(p.id); d.appendChild(sw);
+    const t=document.createElement("div"); t.innerHTML=`<div class="d">${esc(p.description)}</div><div class="m"><span class="a">${esc(p.activity)}</span> <span class="th"></span></div>`; d.appendChild(t); h.appendChild(d);});}
+function updateCast(){arr(M.state&&M.state.people).forEach(p=>{const el=document.getElementById("c"+p.id); if(!el) return; el.querySelector(".a").textContent=(p.seated?"seated · ":"")+(p.activity||""); el.querySelector(".th").textContent=p.thought?"— "+p.thought:"";});}
+let nEv=0;
+function appendEvents(evs){if(!evs.length)return; const f=$("#feedlist"); if(!nEv) f.innerHTML="";
+  evs.forEach(e=>{const d=document.createElement("div"); const t=e.text||""; d.className="ev"+(/DELIVERED|SUCCESS|→ ok|poured|handed|reached/.test(t)?" good":/FAIL|spill|bumped|Could not/.test(t)?" bad":/^Command|entered|episode|crosses/.test(t)?" hi":""); d.innerHTML=`<span class="t num">${(e.t??0).toFixed(1)}</span>${esc(t)}`; f.prepend(d); nEv++;});
+  while(f.children.length>80) f.removeChild(f.lastChild);}
 
-$("#confirm").onclick = async () => {
-  $("#confirm").disabled = true;
-  try {
-    await fetch("/confirm/" + M.job, {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        people: M.people.map(p => ({id:p.id, pos_xy:p.pos_xy, facing_deg:p.facing_deg})),
-        landmarks: arr(M.world.landmarks).map(l => ({id:l.id, label:l.label, center_xy:l.center_xy}))})});
-    openWS();
-  } catch (e) { setStatus("Could not start the run. " + e.message, true); $("#confirm").disabled = false; }
-};
+/* ---------- top-down inset ---------- */
+const top=$("#top"), g=top.getContext("2d"); let S=10,occ=null,NX=0,NY=0,OX=0,OY=0,RES=.1;
+function fitTop(){if(!M.world)return;[NX,NY]=M.world.size_cells;[OX,OY]=M.world.origin_xy;RES=M.world.resolution_m||.1;
+  try{occ=Uint8Array.from(atob(M.world.occupancy_b64),c=>c.charCodeAt(0));}catch{occ=null;}
+  const dpr=Math.min(devicePixelRatio||1,2); top.width=top.clientWidth*dpr; top.height=top.clientHeight*dpr; g.setTransform(dpr,0,0,dpr,0,0);
+  S=Math.min(top.clientWidth/(NX*RES),top.clientHeight/(NY*RES));}
+addEventListener("resize",()=>{fitTop();drawTop();resizeThree();});
+const toPx=(x,y)=>[(x-OX)*S,top.clientHeight-(y-OY)*S], toWorld=(px,py)=>[px/S+OX,(top.clientHeight-py)/S+OY];
+function drawTop(){if(!M.world)return; const W=top.clientWidth,H=top.clientHeight; g.fillStyle="#0b0c12"; g.fillRect(0,0,W,H);
+  if(occ){g.fillStyle="#242a3a"; const s=RES*S+.5; for(let j=0;j<NY;j++)for(let i=0;i<NX;i++)if(occ[j*NX+i]){const[x,y]=toPx(OX+i*RES,OY+(j+1)*RES);g.fillRect(x,y,s,s);}}
+  const st=M.state; for(const r of arr(st&&st.robots)){if(arr(r.path).length){g.strokeStyle="rgba(95,211,238,.7)";g.lineWidth=1;g.beginPath();r.path.forEach((p,k)=>{const[x,y]=toPx(p[0],p[1]);k?g.lineTo(x,y):g.moveTo(x,y);});g.stroke();}
+    const[x,y]=toPx(r.x,r.y); g.fillStyle="#FFB454"; g.beginPath(); g.moveTo(x+7*Math.cos(r.yaw),y-7*Math.sin(r.yaw)); g.lineTo(x+5*Math.cos(r.yaw+2.5),y-5*Math.sin(r.yaw+2.5)); g.lineTo(x+5*Math.cos(r.yaw-2.5),y-5*Math.sin(r.yaw-2.5)); g.closePath(); g.fill();}
+  for(const o of arr(st&&st.objects)){const[x,y]=toPx(o.x,o.y); g.fillStyle=o.id==="cup"?(o.filled?"#6F4A24":"#e8e8e8"):"#2a2a2e"; g.beginPath(); g.arc(x,y,2.5,0,7); g.fill();}
+  const ppl=arr(st&&st.people).length?st.people:M.people.map(p=>({id:p.id,x:p.pos_xy[0],y:p.pos_xy[1],yaw:0}));
+  for(const p of ppl){const[x,y]=toPx(p.x,p.y); g.fillStyle=colorOf(p.id); g.beginPath(); g.arc(x,y,Math.max(.22*S,2.5),0,7); g.fill();}}
+top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({type:"goal",robot:"robot_1",x,y});});
 
-function setStatus(t, bad) {
-  const el = $("#statusline"); el.textContent = t; el.classList.toggle("bad", !!bad);
-  // On a phone the whole desktop grid is display:none, and #statusline lives inside it, so every
-  // message written here would be invisible. Mirror it into the mobile card.
-  const mob = $("#mobmsg");
-  if (mob && matchMedia("(max-width: 700px)").matches) {
-    mob.textContent = t;
-    mob.style.color = bad ? "var(--bad)" : "";
-  }
-}
-function live(on, text) {
-  $("#livechip").hidden = !on;
-  $("#livedot").classList.toggle("live", !!on);
-  $("#livetext").textContent = text || "running";
-}
+/* ---------- three ---------- */
+let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye;
+function initThree(){const host=$("#view"); host.innerHTML="";
+  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(host.clientWidth,host.clientHeight); host.appendChild(renderer.domElement);
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0c12);
+  cam=new THREE.PerspectiveCamera(62,host.clientWidth/host.clientHeight,.05,150); cam.up.set(0,0,1);
+  const cx=OX+NX*RES/2, cy=OY+NY*RES/2; eye=new THREE.Vector3(cx-Math.max(4,NX*RES*.45),cy-Math.max(3,NY*RES*.35),2.4);
+  camYaw=Math.atan2(cy-eye.y,cx-eye.x); camPitch=-0.22; look();
+  scene.add(new THREE.HemisphereLight(0xdfe8f5,0x1a2028,1.05)); const dl=new THREE.DirectionalLight(0xffffff,.5); dl.position.set(3,4,8); scene.add(dl);
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshStandardMaterial({color:0x151823,roughness:1})));
+  boxGroup=new THREE.Group(); boxGroup.visible=!M.world.splat_url;
+  for(const o of arr(M.world.obstacles)){const m=new THREE.Mesh(new THREE.BoxGeometry(o.size_xy[0],o.size_xy[1],o.height_m),new THREE.MeshStandardMaterial({color:0x5b6480,transparent:true,opacity:.42})); m.position.set(o.center_xy[0],o.center_xy[1],o.height_m/2); boxGroup.add(m);} scene.add(boxGroup);
+  meshes={}; M.people.forEach(p=>{const m=personMesh(p); meshes["p"+p.id]=m; scene.add(m); if(crops[p.id]) applyCrop(m,crops[p.id]);});
+  ["cup","pot"].forEach(id=>{const r=id==="cup"?.04:.07,h=id==="cup"?.1:.2; const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,16),new THREE.MeshStandardMaterial({color:id==="cup"?0xEAEAEA:0x26262A})); m.rotation.x=Math.PI/2; m.visible=false; meshes["o"+id]=m; scene.add(m);});
+  goalRing=new THREE.Mesh(new THREE.TorusGeometry(.25,.02,8,24),new THREE.MeshBasicMaterial({color:0x5fd3ee})); goalRing.visible=false; scene.add(goalRing);
+  pathLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x5fd3ee})); scene.add(pathLine);
+  bindOrbit(); loadBackdrop(); animate();}
+function look(){cam.position.copy(eye); cam.lookAt(eye.x+Math.cos(camPitch)*Math.cos(camYaw),eye.y+Math.cos(camPitch)*Math.sin(camYaw),eye.z+Math.sin(camPitch));}
+function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=e=>{d=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId);}; el.onpointerup=()=>d=null;
+  el.onpointermove=e=>{if(!d)return; camYaw-=(e.clientX-d[0])*.004; camPitch=Math.max(-1.2,Math.min(1.2,camPitch+(e.clientY-d[1])*.004)); d=[e.clientX,e.clientY]; look();};
+  el.onwheel=e=>{e.preventDefault(); const s=e.deltaY>0?-.5:.5; eye.x+=s*Math.cos(camPitch)*Math.cos(camYaw); eye.y+=s*Math.cos(camPitch)*Math.sin(camYaw); eye.z=Math.max(.5,eye.z+s*Math.sin(camPitch)); look();};}
+function resizeThree(){if(!renderer)return; const h=$("#view"); renderer.setSize(h.clientWidth,h.clientHeight); cam.aspect=h.clientWidth/h.clientHeight; cam.updateProjectionMatrix();}
 
-/* ---------------------------------------------------------------- websocket */
-function openWS() {
-  M.confirmed = true;
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws/${M.job}`);
-  M.ws = ws;
-  ws.onmessage = ev => {
-    let m; try { m = JSON.parse(ev.data); } catch { return; }
-    if (m.type === "snapshot") {
-      M.world = m.world; M.people = arr(m.people && m.people.people);
-      drawPhotos(); drawCast(); fillSelects(); fitTop();
-      initThree(); M.running = true; live(true, "running");
-      setStatus("Room is live. Click the map to send Spot somewhere.");
-      for (const el of [$("#left"), $("#center"), $("#right")]) el.classList.add("fade");
-      refreshEpisodes();
-    } else if (m.type === "state") {
-      M.state = m;
-      appendEvents(arr(m.events));
-      updateCast(); updateThree(m); drawTop();
-      updateEpisode(m.episode);
-      live(!m.paused, m.paused ? "paused" : "running");
-    } else if (m.type === "error") {
-      setStatus(m.message || "Server refused the connection", true);
-    }
-  };
-  ws.onclose = () => { M.running = false; live(false, "closed"); setStatus("Connection lost. Reload to reconnect.", true); };
-  ws.onerror = () => setStatus("Connection error. Reload to reconnect.", true);
-}
-const send = o => { if (M.ws && M.ws.readyState === 1) M.ws.send(JSON.stringify(o)); };
-
-$("#cmd").addEventListener("keydown", e => {
-  if (e.key === "Enter" && e.target.value.trim()) { send({type:"command", text:e.target.value.trim()}); e.target.value = ""; }
-});
-$("#dropSpot").onclick = () => send({type:"drop_robot", robot_type:"spot"});
-$("#dropHum").onclick  = () => send({type:"drop_robot", robot_type:"humanoid"});
-$("#pause").onclick    = () => send({type:"pause"});
-$("#reset").onclick    = () => send({type:"reset"});
-
-/* ---------------------------------------------------------------- left column */
-function drawPhotos() {
-  const host = $("#photos"); host.innerHTML = "";
-  const urls = arr(M.world && M.world.photo_urls);
-  if (!urls.length) { host.innerHTML = '<div class="empty">The demo room has no photos.</div>'; return; }
-  urls.forEach((u, i) => {
-    const name = M.photos[i] || String.fromCharCode(65 + i);
-    const d = document.createElement("div"); d.className = "photo";
-    d.innerHTML = `<img src="${u}" alt="Photo ${name}"><span class="tag">${name}</span>`;
-    M.people.forEach(p => {
-      const b = p.boxes && p.boxes[name];
-      if (!b) return;
-      const box = document.createElement("div");
-      box.className = "bx";
-      box.style.cssText = `left:${b[0]*100}%;top:${b[1]*100}%;width:${(b[2]-b[0])*100}%;height:${(b[3]-b[1])*100}%;border-color:${colorOf(p.id)}`;
-      box.innerHTML = `<b style="background:${colorOf(p.id)}">${p.id}</b>`;
-      d.appendChild(box);
-    });
-    host.appendChild(d);
-  });
-}
-const colorOf = id => PERSON_COLORS[(id - 1) % PERSON_COLORS.length];
-
-function drawCast() {
-  const host = $("#cast"); host.innerHTML = "";
-  if (!M.people.length) { host.innerHTML = '<div class="empty">No one in the room yet.</div>'; return; }
-  M.people.forEach(p => {
-    const d = document.createElement("div"); d.className = "person"; d.id = "cast" + p.id;
-    d.innerHTML = `<span class="swatch" style="background:${colorOf(p.id)}"></span>
-      <div><div class="who">${p.id} · ${esc(p.description)}</div>
-      <div class="meta"><span class="act">${esc(p.activity || "")}</span>
-      <span class="mono th"></span></div></div>`;
-    host.appendChild(d);
-  });
-}
-function updateCast() {
-  arr(M.state && M.state.people).forEach(p => {
-    const el = document.getElementById("cast" + p.id); if (!el) return;
-    el.querySelector(".act").textContent = (p.seated ? "seated · " : "") + (p.activity || "");
-    el.querySelector(".th").textContent = p.thought ? "  " + p.thought : "";
-  });
-}
-const esc = s => String(s == null ? "" : s).replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
-
-let feedCount = 0;
-function appendEvents(evs) {
-  if (!evs.length) return;
-  const feed = $("#feed");
-  if (!feedCount) feed.innerHTML = "";
-  evs.forEach(e => {
-    const d = document.createElement("div");
-    const txt = e.text || "";
-    d.className = "ev" + (/SUCCESS|→ ok|poured|reached/.test(txt) ? " good"
-                        : /FAIL|spilled|bumped|error|Could not/.test(txt) ? " bad"
-                        : /^Command|entered|episode/.test(txt) ? " hi" : "");
-    d.innerHTML = `<span class="t">${(e.t ?? 0).toFixed(1)}</span>${esc(txt)}`;
-    feed.prepend(d); feedCount++;
-  });
-  while (feed.children.length > 120) feed.removeChild(feed.lastChild);
-}
-
-/* ---------------------------------------------------------------- top-down map */
-const top = $("#top"), g = top.getContext("2d");
-let S = 40, occ = null, NX = 0, NY = 0, OX = 0, OY = 0, RES = 0.1, MAPX = 0, MAPY = 0;
-const mapPoint = e => { const r = top.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-
-function sizeCanvas() {
-  // A canvas defaults to a blurry 300×150 bitmap. Size it even before a job arrives.
-  const W = top.clientWidth, H = top.clientHeight;
-  if (!W || !H) return null;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
-  if (top.width !== pw || top.height !== ph) { top.width = pw; top.height = ph; }
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return [W, H];
-}
-function fitTop() {
-  const dims = sizeCanvas();
-  if (!M.world || !dims) return;
-  [NX, NY] = M.world.size_cells; [OX, OY] = M.world.origin_xy; RES = M.world.resolution_m || 0.1;
-  try { occ = Uint8Array.from(atob(M.world.occupancy_b64), c => c.charCodeAt(0)); } catch { occ = null; }
-  const [W, H] = dims;
-  if (!NX || !NY || !RES) return;
-  // Fit (rather than crop) the map. Rectangular 7×9 maps, 20 m rooms, and thin corridors retain their extent.
-  S = Math.max(1, Math.min(W / (NX * RES), H / (NY * RES)));
-  MAPX = (W - NX * RES * S) / 2; MAPY = (H - NY * RES * S) / 2;
-}
-const mapResize = () => { fitTop(); drawTop(); resizeThree(); };
-addEventListener("resize", mapResize);
-new ResizeObserver(mapResize).observe(top);
-
-const toPx = (x, y) => [MAPX + (x - OX) * S, MAPY + (NY * RES - (y - OY)) * S];
-const toWorld = (px, py) => [(px - MAPX) / S + OX, (NY * RES - (py - MAPY) / S) + OY];
-
-function drawTop() {
-  if (!M.world) return;
-  const W = top.clientWidth, H = top.clientHeight;
-  g.fillStyle = "#0B0E13"; g.fillRect(0, 0, W, H);
-  if (occ) {
-    g.fillStyle = "#28323E";
-    const s = RES * S + 0.5;
-    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) if (occ[j * NX + i]) {
-      const [x, y] = toPx(OX + i * RES, OY + (j + 1) * RES);
-      g.fillRect(x, y, s, s);
-    }
-  }
-  g.font = "11px Inter, system-ui";
-  for (const lm of arr(M.world.landmarks)) {
-    const [x, y] = toPx(lm.center_xy[0] - lm.size_xy[0] / 2, lm.center_xy[1] + lm.size_xy[1] / 2);
-    g.strokeStyle = "rgba(255,180,84,.55)"; g.lineWidth = 1;
-    g.strokeRect(x, y, lm.size_xy[0] * S, lm.size_xy[1] * S);
-    g.fillStyle = "rgba(255,180,84,.85)"; g.fillText(lm.label, x + 3, y - 4);
-  }
-  const st = M.state;
-  for (const o of arr(st && st.objects)) {
-    const [x, y] = toPx(o.x, o.y);
-    g.fillStyle = o.id === "cup" ? (o.filled ? "#6F4A24" : "#E8E8E8") : "#2A2A2E";
-    g.strokeStyle = "#0B0E13"; g.lineWidth = 1;
-    g.beginPath(); g.arc(x, y, 4.5, 0, 7); g.fill(); g.stroke();
-  }
-  for (const r of arr(st && st.robots)) {
-    if (arr(r.path).length) {
-      g.strokeStyle = "rgba(94,200,242,.75)"; g.lineWidth = 1.5; g.beginPath();
-      r.path.forEach((p, k) => { const [x, y] = toPx(p[0], p[1]); k ? g.lineTo(x, y) : g.moveTo(x, y); });
-      g.stroke();
-    }
-    if (r.goal) { const [x, y] = toPx(r.goal[0], r.goal[1]);
-      g.strokeStyle = "var(--cyan)"; g.strokeStyle = "#5EC8F2"; g.beginPath(); g.arc(x, y, 6, 0, 7); g.stroke(); }
-    const [x, y] = toPx(r.x, r.y);
-    g.fillStyle = "#FFB454"; g.beginPath();
-    g.moveTo(x + 13 * Math.cos(r.yaw), y - 13 * Math.sin(r.yaw));
-    g.lineTo(x + 9 * Math.cos(r.yaw + 2.5), y - 9 * Math.sin(r.yaw + 2.5));
-    g.lineTo(x + 9 * Math.cos(r.yaw - 2.5), y - 9 * Math.sin(r.yaw - 2.5));
-    g.closePath(); g.fill();
-  }
-  const ppl = arr(st && st.people).length ? st.people
-            : M.people.map(p => ({id:p.id, x:p.pos_xy[0], y:p.pos_xy[1], yaw:(p.facing_deg||0)*Math.PI/180}));
-  for (const p of ppl) {
-    const [x, y] = toPx(p.x, p.y);
-    g.fillStyle = colorOf(p.id);
-    g.beginPath(); g.arc(x, y, Math.max(0.22 * S, 5), 0, 7); g.fill();
-    g.strokeStyle = "#0B0E13"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y);
-    g.lineTo(x + 0.34 * S * Math.cos(p.yaw), y - 0.34 * S * Math.sin(p.yaw)); g.stroke();
-    g.fillStyle = "#0B0E13"; g.font = "600 10px Inter, system-ui";
-    g.fillText(p.id, x - 3, y + 3.5);
-  }
-}
-
-let dragged = false;
-const clampMap = (x, y) => [Math.max(OX, Math.min(OX + NX * RES, x)), Math.max(OY, Math.min(OY + NY * RES, y))];
-function hitEditable(wx, wy) {
-  // Hit areas are expressed in screen pixels, not metres, so small and 20 m maps behave alike.
-  let best = null, bd = Infinity;
-  M.people.forEach(p => { const d = Math.hypot(p.pos_xy[0]-wx, p.pos_xy[1]-wy); if (d <= Math.max(.30, 12 / S) && d < bd) { bd=d; best={kind:"p",o:p}; } });
-  // A person seated at a table must remain draggable; only test furniture if no person won.
-  if (best) return best;
-  arr(M.world && M.world.landmarks).forEach(l => {
-    const [cx,cy] = l.center_xy, [sx,sy] = l.size_xy;
-    const dx=Math.max(Math.abs(wx-cx)-sx/2,0), dy=Math.max(Math.abs(wy-cy)-sy/2,0), d=Math.hypot(dx,dy);
-    if (d <= Math.max(.15,10/S) && d < bd) { bd=d; best={kind:"l",o:l}; }
-  }); return best;
-}
-top.addEventListener("pointerdown", e => {
-  top.focus(); dragged=false; if (M.confirmed) return;
-  const [px,py]=mapPoint(e), [wx,wy]=toWorld(px,py); M.drag=hitEditable(wx,wy);
-  if (M.drag) top.setPointerCapture(e.pointerId);
-});
-top.addEventListener("pointermove", e => { if (!M.drag) return; const [px,py]=mapPoint(e); let [wx,wy]=toWorld(px,py);
-  [wx,wy] = clampMap(wx, wy); dragged=true; if (M.drag.kind === "p") M.drag.o.pos_xy=[wx,wy]; else M.drag.o.center_xy=[wx,wy]; drawTop(); });
-function finishDrag(e) { const had=!!M.drag; M.drag=null; if (had) { e.preventDefault(); setTimeout(()=>dragged=false,0); } }
-top.addEventListener("pointerup", finishDrag);
-top.addEventListener("pointercancel", finishDrag);
-top.addEventListener("click", e => { if (!M.confirmed || dragged) return; const [px,py]=mapPoint(e), [x,y]=toWorld(px,py); send({type:"goal",robot:"robot_1",x,y}); });
-top.addEventListener("dblclick", e => { if (M.confirmed) return; const [px,py]=mapPoint(e), [wx,wy]=toWorld(px,py); const hit=hitEditable(wx,wy); const lm=hit && hit.kind === "l" && hit.o;
-  if (!lm) return; const v=prompt("What is this?",lm.label); if(v){lm.label=v.trim();drawTop();fillSelects();} });
-
-/* teleop */
-const keys = {}; let teleTimer = null;
-const humanEpisode = () => M.activeHuman || !!(M.state && M.state.episode && M.state.episode.policy === "human");
-function teleCommand() { return {v:.6*(keys.w?1:0)-.6*(keys.s?1:0), w:1.2*(keys.a?1:0)-1.2*(keys.d?1:0)}; }
-function stopTele() { for (const k of Object.keys(keys)) delete keys[k]; if (teleTimer) clearInterval(teleTimer); teleTimer=null; send({type:"teleop",robot:"robot_1",v:0,w:0}); }
-top.addEventListener("keydown", e => { const k=e.key.toLowerCase(); if (!"wasd".includes(k) || !humanEpisode()) return; keys[k]=1; startTele(); e.preventDefault(); });
-top.addEventListener("keyup", e => { const k=e.key.toLowerCase(); if (!"wasd".includes(k)) return; delete keys[k]; if (humanEpisode()) { const c=teleCommand(); send({type:"teleop",robot:"robot_1",...c}); } });
-top.addEventListener("blur", stopTele); document.addEventListener("visibilitychange",()=>{if(document.hidden)stopTele();});
-function startTele() { if (teleTimer || !humanEpisode()) return; teleTimer=setInterval(()=>{ const c=teleCommand(); send({type:"teleop",robot:"robot_1",...c}); if(!c.v&&!c.w){clearInterval(teleTimer);teleTimer=null;} },100); }
-
-/* ---------------------------------------------------------------- three.js */
-let scene, cam, renderer, meshes = {}, boxGroup, goalRing, pathLine, splat = null, camYaw = 0, camPitch = 0, eye;
-
-function initThree() {
-  const host = $("#view");
-  if (renderer) { host.innerHTML = ""; }
-  renderer = new THREE.WebGLRenderer({antialias:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(host.clientWidth, host.clientHeight);
-  host.appendChild(renderer.domElement);
-  scene = new THREE.Scene(); scene.background = new THREE.Color(0x0B0E13);
-  cam = new THREE.PerspectiveCamera(70, host.clientWidth / host.clientHeight, 0.05, 120);
-  cam.up.set(0, 0, 1);
-  const camA = arr(M.world.cameras)[0];
-  eye = camA ? new THREE.Vector3(camA.t[0], camA.t[1], Math.max(camA.t[2], 1.2))
-             : new THREE.Vector3(OX + NX*RES/2 - 4, OY + NY*RES/2, 2.2);
-  const f = camA ? new THREE.Vector3(camA.R[0][2], camA.R[1][2], camA.R[2][2]) : new THREE.Vector3(1, 0, 0);
-  camYaw = Math.atan2(f.y, f.x); camPitch = Math.asin(Math.max(-1, Math.min(1, f.z)));
-  look();
-  scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x1a2028, 1.1));
-  const dl = new THREE.DirectionalLight(0xffffff, 0.55); dl.position.set(3, 4, 8); scene.add(dl);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60),
-    new THREE.MeshStandardMaterial({color:0x1A222C, roughness:1}));
-  scene.add(floor);
-  boxGroup = new THREE.Group(); boxGroup.visible = !M.world.splat_url;
-  for (const o of arr(M.world.obstacles)) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(o.size_xy[0], o.size_xy[1], o.height_m),
-      new THREE.MeshStandardMaterial({color:0x6E7A93, transparent:true, opacity:0.45}));
-    m.position.set(o.center_xy[0], o.center_xy[1], o.height_m / 2);
-    boxGroup.add(m);
-  }
-  scene.add(boxGroup);
-  window.toggleBoxes = () => boxGroup.visible = !boxGroup.visible;
-  meshes = {};
-  M.people.forEach(p => { const m = personMesh(p); meshes["p" + p.id] = m; scene.add(m); });
-  ["cup","pot"].forEach(id => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(id === "cup" ? 0.04 : 0.07, id === "cup" ? 0.04 : 0.07,
-      id === "cup" ? 0.10 : 0.20, 16), new THREE.MeshStandardMaterial({color: id === "cup" ? 0xEAEAEA : 0x26262A}));
-    m.rotation.x = Math.PI / 2; m.visible = false; meshes["o" + id] = m; scene.add(m);
-  });
-  goalRing = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.02, 8, 24),
-    new THREE.MeshBasicMaterial({color:0x5EC8F2}));
-  goalRing.visible = false; scene.add(goalRing);
-  pathLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({color:0x5EC8F2}));
-  scene.add(pathLine);
-  bindOrbit(); loadBackdrop(); animate();
-}
-function look() { cam.position.copy(eye);
-  cam.lookAt(eye.x + Math.cos(camPitch)*Math.cos(camYaw), eye.y + Math.cos(camPitch)*Math.sin(camYaw), eye.z + Math.sin(camPitch)); }
-function bindOrbit() {
-  const el = renderer.domElement; let drag = null;
-  el.onpointerdown = e => { drag = [e.clientX, e.clientY]; el.setPointerCapture(e.pointerId); };
-  el.onpointerup = () => drag = null;
-  el.onpointermove = e => {
-    if (!drag) return;
-    camYaw -= (e.clientX - drag[0]) * 0.004;
-    camPitch = Math.max(-1.2, Math.min(1.2, camPitch + (e.clientY - drag[1]) * 0.004));
-    drag = [e.clientX, e.clientY]; look();
-  };
-  el.onwheel = e => { e.preventDefault();
-    const s = e.deltaY > 0 ? -0.4 : 0.4;
-    eye.x += s * Math.cos(camPitch) * Math.cos(camYaw); eye.y += s * Math.cos(camPitch) * Math.sin(camYaw);
-    eye.z = Math.max(0.4, eye.z + s * Math.sin(camPitch)); look(); };
-}
-function resizeThree() {
-  if (!renderer) return;
-  const h = $("#view");
-  renderer.setSize(h.clientWidth, h.clientHeight);
-  cam.aspect = h.clientWidth / h.clientHeight; cam.updateProjectionMatrix();
-}
-function personMesh(p) {
-  const gp = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({color:new THREE.Color(p.color || colorOf(p.id)), roughness:.8});
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.26, 16), mat);
-  body.rotation.x = Math.PI/2; body.position.z = 0.85; gp.add(body);
-  const top_ = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), mat); top_.position.z = 1.48; gp.add(top_);
-  const bot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), mat); bot.position.z = 0.22; gp.add(bot);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6),
-    new THREE.MeshStandardMaterial({color:0x11151b})); nose.position.set(0.22, 0, 1.42); gp.add(nose);
-  gp.add(labelSprite(String(p.id)));
-  return gp;
-}
-function labelSprite(txt) {
-  const c = document.createElement("canvas"); c.width = c.height = 64;
-  const x = c.getContext("2d");
-  x.fillStyle = "rgba(15,19,25,.8)"; x.beginPath(); x.arc(32, 32, 26, 0, 7); x.fill();
-  x.fillStyle = "#E4E9EF"; x.font = "600 30px Inter, system-ui"; x.textAlign = "center"; x.textBaseline = "middle";
-  x.fillText(txt, 32, 33);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c), depthTest:false}));
-  sp.scale.set(0.30, 0.30, 1); sp.position.z = 1.95;
-  return sp;
-}
-function robotMesh(type) {
-  const gp = new THREE.Group();
-  const shell = new THREE.MeshStandardMaterial({color: type === "humanoid" ? 0xD9DCE6 : 0xFCBF1E, roughness:.6});
-  const dark = new THREE.MeshStandardMaterial({color:0x22242A, roughness:.7});
-  const cap = (r, h, m, x, y, z, rot) => {
-    const c = new THREE.Mesh(new THREE.CapsuleGeometry(r, h, 4, 10), m);
-    c.position.set(x, y, z); if (rot) c.rotation.x = Math.PI/2; gp.add(c); return c;
-  };
-  if (type === "humanoid") {
-    cap(0.07, 0.42, shell, 0, 0.10, 0.32, true); cap(0.07, 0.42, shell, 0, -0.10, 0.32, true);
-    cap(0.14, 0.62, shell, 0, 0, 1.00, true);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), shell); head.position.z = 1.60; gp.add(head);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.04),
-      new THREE.MeshStandardMaterial({color:0x1A4CE6, emissive:0x102a80})); visor.position.set(0.09, 0, 1.62); gp.add(visor);
-    cap(0.05, 0.5, shell, 0, 0.21, 1.05, true);
-  } else {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.60, 0.32, 0.18), shell); body.position.z = 0.60; gp.add(body);
-    [[0.30,1],[-0.30,1]].forEach(([sx]) => {
-      const hip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.38, 0.14), dark); hip.position.set(sx, 0, 0.58); gp.add(hip);
-    });
-    [[0.36,0.17],[0.36,-0.17],[-0.36,0.17],[-0.36,-0.17]].forEach(([sx, sy]) => {
-      const u = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.22, 3, 8), dark);
-      u.position.set(sx - 0.03, sy, 0.42); u.rotation.y = 0.25; gp.add(u);
-      const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.033, 0.24, 3, 8), dark);
-      l.position.set(sx - 0.02, sy, 0.18); l.rotation.y = -0.2; gp.add(l);
-    });
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.12), shell); head.position.set(0.36, 0, 0.66); gp.add(head);
-    const eye_ = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.07),
-      new THREE.MeshStandardMaterial({color:0x1AA0E6, emissive:0x0a4c72})); eye_.position.set(0.45, 0, 0.66); gp.add(eye_);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.60, 10), shell);
-    mast.rotation.x = Math.PI/2; mast.position.set(-0.12, 0, 0.92); gp.add(mast);
-  }
-  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.30, 3, 8),
-    new THREE.MeshStandardMaterial({color:0x9AA0AC}));
-  arm.rotation.z = Math.PI/2; arm.position.set(0.25, 0, 1.25); gp.add(arm);
-  return gp;
-}
-function updateThree(st) {
-  if (!scene) return;
-  for (const p of arr(st.people)) {
-    const m = meshes["p" + p.id]; if (!m) continue;
-    m.position.set(p.x, p.y, 0); m.rotation.z = p.yaw;
-  }
-  for (const r of arr(st.robots)) {
-    let m = meshes[r.id];
-    if (!m) { m = robotMesh(r.type || "spot"); meshes[r.id] = m; scene.add(m); }
-    m.visible = true; m.position.set(r.x, r.y, 0); m.rotation.z = r.yaw;
-    if (arr(r.path).length && pathLine)
-      pathLine.geometry.setFromPoints(r.path.map(p => new THREE.Vector3(p[0], p[1], 0.03)));
-    if (goalRing) { goalRing.visible = !!r.goal; if (r.goal) goalRing.position.set(r.goal[0], r.goal[1], 0.02); }
-  }
-  for (const o of arr(st.objects)) {
-    const m = meshes["o" + o.id]; if (!m) continue;
-    m.visible = true; m.position.set(o.x, o.y, o.z);
-    if (o.id === "cup" && m.material) m.material.color.set(o.filled ? 0x6F4A24 : 0xEAEAEA);
-  }
-}
-function animate() { requestAnimationFrame(animate); try { renderer && renderer.render(scene, cam); } catch {} }
-
-async function loadBackdrop() {
-  const w = M.world;
-  if (w.splat_url) {
-    try {
-      const spark = await import("https://cdn.jsdelivr.net/npm/@sparkjsdev/spark/dist/spark.module.js");
-      const SplatMesh = spark.SplatMesh;
-      splat = new SplatMesh({url: w.splat_url});
-      splat.matrixAutoUpdate = false;
-      if (arr(w.T_atlas_to_sim).length === 4) splat.matrix.set(...w.T_atlas_to_sim.flat());
-      scene.add(splat);
-      return;
-    } catch (e) { console.warn("splat unavailable, using the photo backdrop", e); }
-  }
-  const camA = arr(w.cameras)[0];
-  const url = w.photo_a_url;
-  if (camA && url) {
-    const tex = new THREE.TextureLoader().load(url);
-    const fx = camA.K[0][0], W = camA.width, H = camA.height, D = 6;
-    const pw = D * W / fx, ph = pw * H / W;
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph),
-      new THREE.MeshBasicMaterial({map:tex, transparent:true, opacity:.85}));
-    const f = new THREE.Vector3(camA.R[0][2], camA.R[1][2], camA.R[2][2]);
-    plane.position.set(camA.t[0] + f.x*D, camA.t[1] + f.y*D, camA.t[2] + f.z*D);
-    plane.lookAt(new THREE.Vector3(camA.t[0], camA.t[1], camA.t[2]));
-    scene.add(plane);
-  }
-}
-let flip = 0;
-addEventListener("keydown", e => {
-  if (e.key !== "f" || !splat) return;
-  flip = (flip + 1) % 4;
-  const s = [[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]][flip];
-  const F = new THREE.Matrix4().makeScale(s[0], s[1], s[2]);
-  const T = new THREE.Matrix4();
-  if (arr(M.world.T_atlas_to_sim).length === 4) T.set(...M.world.T_atlas_to_sim.flat());
-  splat.matrix.multiplyMatrices(T, F);
-});
-
-/* ---------------------------------------------------------------- episodes */
-function fillSelects() {
-  const req = $("#req"); req.innerHTML = "";
-  M.people.forEach(p => { const o = document.createElement("option"); o.value = p.id;
-    o.textContent = `${p.id} · ${p.description}`; req.appendChild(o); });
-  const tgt = $("#skTgt"); tgt.innerHTML = "";
-  arr(M.world && M.world.landmarks).forEach(l => { const o = document.createElement("option");
-    o.value = l.id; o.textContent = l.label; tgt.appendChild(o); });
-  M.people.forEach(p => { const o = document.createElement("option"); o.value = String(p.id);
-    o.textContent = "person " + p.id; tgt.appendChild(o); });
-}
-const TASK_TEXT = {coffee_to_person:"get me a cup of coffee and bring it to me",
-                   bring_object:"bring me the cup", go_to:"go to the table"};
-// Deterministic JSON used only for client-side snapshot de-duplication.
-function stableJson(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stableJson(value[k])}`).join(",")}}`;
-}
-$("#ttype").onchange = e => { $("#task").value = TASK_TEXT[e.target.value] || ""; };
-$("#pol").onchange = e => {
-  $("#endpoint").hidden = e.target.value !== "endpoint";
-  const human = e.target.value === "human";
-  $("#skills").hidden = !human; $("#hint").textContent = "Human demo: click map, then W/S drive · A/D turn · choose a skill";
-  $("#hint").style.display = human ? "block" : "none";
-};
-
-function policyCfg() {
-  const k = $("#pol").value;
-  if (k === "endpoint") return {kind:"chat", url:$("#epurl").value.trim(), model:$("#epmodel").value.trim(), key:$("#epkey").value};
-  if (k === "chat") return {kind:"chat"};
-  return {kind:k};
-}
-async function startEpisode(replayOf) {
-  const body = {task_type:$("#ttype").value, task_text:$("#task").value,
-                requester:parseInt($("#req").value || "1", 10), robot_type:$("#rtype").value,
-                policy:policyCfg(), seed:parseInt($("#seed").value || "7", 10),
-                humans:$("#humans").value, replay_of:replayOf || null};
-  if ($("#ttype").value === "go_to") body.target = $("#skTgt").value;
-  $("#steplog").innerHTML = ""; M.seenSteps = new Set(); M.logEpisodeId = null; $("#banner").style.display = "none";
-  try {
-    const r = await fetch("/episode/start/" + M.job, {method:"POST",
-      headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    const j = await r.json(); M.lastEpisode = j.episode_id; M.activeHuman = policyCfg().kind === "human";
-    $("#epStop").disabled = false; $("#rerun").disabled = false;
-  } catch (e) { setStatus("Could not start the episode. " + e.message, true); }
-}
-$("#epStart").onclick = () => startEpisode(null);
-$("#rerun").onclick  = () => startEpisode(M.lastEpisode);
-$("#epStop").onclick = async () => { await fetch("/episode/stop/" + M.job, {method:"POST"}); $("#epStop").disabled = true; };
-
-let lastEpId = null;
-function updateEpisode(ep) {
-  if (!ep) {
-    M.activeHuman = false;
-    if (lastEpId) { lastEpId = null; $("#epStop").disabled = true; refreshEpisodes(); }
-    return;
-  }
-  lastEpId = ep.id; M.lastEpisode = ep.id; $("#epStop").disabled = false;
-  if (M.logEpisodeId !== ep.id) { M.logEpisodeId = ep.id; M.seenSteps.clear(); $("#steplog").innerHTML = ""; }
-  // WebSocket JSON object key order is not an identity. Canonicalize nested payloads so a
-  // repeated state snapshot cannot create a duplicate visible step.
-  const key = `${ep.id}:${ep.step}:${stableJson(ep.last_action || {})}:${stableJson(ep.last_result || {})}`;
-  if (ep.last_action && ep.last_result && !M.seenSteps.has(key)) {
-    M.seenSteps.add(key);
-    const log = $("#steplog");
-    if (M.seenSteps.size === 1) log.innerHTML = "";
-    const a = ep.last_action, r = ep.last_result;
-    const args = a.object || (a.target != null ? a.target : "");
-    const d = document.createElement("div");
-    d.innerHTML = `${ep.step} · ${esc(a.action)}(${esc(args)}) → ` +
-      (r.ok ? `<span style="color:var(--good)">ok</span>`
-            : `<span style="color:var(--bad)">FAIL ${esc(r.reason)}</span>`);
-    log.prepend(d);
-  }
-}
-async function refreshEpisodes() {
-  let j;
-  try { j = await (await fetch("/episodes/" + M.job)).json(); } catch { return; }
-  const list = arr(j.episodes), host = $("#eplist");
-  if (!list.length) { host.innerHTML = '<div class="empty">Finished episodes are listed here with their failure tags.</div>'; return; }
-  host.innerHTML = "";
-  const kids = {};
-  list.forEach(e => { if (e.replay_of) (kids[e.replay_of] = kids[e.replay_of] || []).push(e); });
-  const row = (e, child) => {
-    const d = document.createElement("div");
-    d.className = "eprow" + (child ? " child" : "");
-    const v = e.success === true ? ["ok","SUCCESS"] : e.success === false ? ["no","FAIL"] : ["na","open"];
-    d.innerHTML = `<span class="verdict ${v[0]}">${v[1]}</span>
-      <div style="flex:1"><div>${esc(e.task_type)} · ${esc(e.policy_kind || "")} · ${e.n_steps || 0} steps · seed ${e.seed}</div>
-      <div>${arr(e.tags).map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div></div>`;
-    host.appendChild(d);
-  };
-  list.filter(e => !e.replay_of).forEach(e => { row(e, false); arr(kids[e.episode_id]).forEach(k => row(k, true)); });
-  const orphan = list.filter(e => e.replay_of && !list.some(p => p.episode_id === e.replay_of));
-  orphan.forEach(e => row(e, true));
-  const last = list.find(e => e.success !== null);
-  if (last) {
-    const b = $("#banner");
-    b.className = last.success ? "ok" : "no";
-    b.style.display = "block";
-    b.innerHTML = (last.success ? "Episode succeeded" : "Episode failed") +
-      arr(last.tags).map(t => `<span class="tag">${esc(t)}</span>`).join("");
-  }
-}
-$("#sft").onclick = async () => {
-  $("#sftout").textContent = "building…";
-  try {
-    const r = await fetch("/sft/" + M.job, {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({relabel:"oracle", only_failures:false, include_human:true})});
-    const j = await r.json();
-    $("#sftout").innerHTML = `${j.n} examples · <a href="${j.url}" download>download sft.jsonl</a>`;
-  } catch (e) { $("#sftout").textContent = "Could not build the training set."; }
-};
-document.querySelectorAll("[data-skill]").forEach(b => b.onclick = () => {
-  if (!humanEpisode()) { setStatus("Start a Human demo episode before sending skills.", true); return; }
-  const a = b.dataset.skill;
-  const msg = {type:"skill", action:a, object:null, target:null, text:null};
-  if (a === "pick") msg.object = $("#skObj").value;
-  if (a === "place") { msg.object = $("#skObj").value; const t = $("#skTgt").value; msg.target = /^\d+$/.test(t) ? parseInt(t,10) : t; }
-  if (a === "pour") msg.target = "cup";
-  send(msg);
-});
-// Narrow test hook: enables deterministic regression checks without changing API behavior.
-window.__walkinTest = { fitTop, toPx, toWorld, state: () => M };
-fitTop();
+/* people: capsule body scaled to a per-person height, with the actual photo crop stood up on it */
+function heightOf(p){const seeds=[1.62,1.78,1.70,1.85,1.66,1.74]; return seeds[(p.id-1)%6];}
+function personMesh(p){const gp=new THREE.Group(); const H=heightOf(p), seated=p.posture==="seated"; const h=seated?H*.72:H;
+  const mat=new THREE.MeshStandardMaterial({color:new THREE.Color(colorOf(p.id)).multiplyScalar(.55),roughness:.85});
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.20,h-.62,4,12),mat); body.rotation.x=Math.PI/2; body.position.z=h/2; gp.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshStandardMaterial({color:0xd8c4b0,roughness:.9})); head.position.z=h-.05; gp.add(head);
+  const bb=new THREE.Mesh(new THREE.PlaneGeometry(.62,h*.98),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide})); bb.position.z=h*.5; bb.name="crop"; gp.add(bb);
+  const sp=labelSprite(String(p.id),colorOf(p.id)); sp.position.z=h+.25; gp.add(sp); gp.userData.h=h; return gp;}
+function applyCrop(gp,c){const bb=gp.getObjectByName("crop"); if(!bb)return; const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; bb.material.map=tex; bb.material.opacity=.96; bb.material.needsUpdate=true;
+  const ar=c.width/Math.max(c.height,1); const h=gp.userData.h*.98; bb.geometry.dispose(); bb.geometry=new THREE.PlaneGeometry(h*ar,h);}
+function labelSprite(txt,col){const c=document.createElement("canvas"); c.width=c.height=64; const x=c.getContext("2d"); x.fillStyle="rgba(11,12,18,.85)"; x.beginPath(); x.arc(32,32,26,0,7); x.fill(); x.strokeStyle=col; x.lineWidth=3; x.stroke(); x.fillStyle="#e8eaf2"; x.font="600 28px Inter"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt,32,33);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false})); s.scale.set(.26,.26,1); return s;}
+function robotMesh(){const gp=new THREE.Group(); const shell=new THREE.MeshStandardMaterial({color:0xFCBF1E,roughness:.55,metalness:.15}), dark=new THREE.MeshStandardMaterial({color:0x1d1f26,roughness:.7});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.60,.32,.18),shell); body.position.z=.60; gp.add(body);
+  [[.30],[-.30]].forEach(([sx])=>{const hip=new THREE.Mesh(new THREE.BoxGeometry(.14,.38,.14),dark); hip.position.set(sx,0,.58); gp.add(hip);});
+  [[.36,.17],[.36,-.17],[-.36,.17],[-.36,-.17]].forEach(([sx,sy])=>{const u=new THREE.Mesh(new THREE.CapsuleGeometry(.045,.22,3,8),dark); u.position.set(sx-.03,sy,.42); u.rotation.y=.25; gp.add(u); const l=new THREE.Mesh(new THREE.CapsuleGeometry(.033,.24,3,8),dark); l.position.set(sx-.02,sy,.18); l.rotation.y=-.2; gp.add(l);});
+  const head=new THREE.Mesh(new THREE.BoxGeometry(.16,.22,.12),shell); head.position.set(.36,0,.66); gp.add(head);
+  const eyeb=new THREE.Mesh(new THREE.BoxGeometry(.02,.16,.07),new THREE.MeshStandardMaterial({color:0x1AA0E6,emissive:0x0a4c72})); eyeb.position.set(.45,0,.66); gp.add(eyeb);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.60,10),shell); mast.rotation.x=Math.PI/2; mast.position.set(-.12,0,.92); gp.add(mast);
+  const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.03,.30,3,8),new THREE.MeshStandardMaterial({color:0x9AA0AC})); arm.rotation.z=Math.PI/2; arm.position.set(.25,0,1.25); gp.add(arm); return gp;}
+function updateThree(st){if(!scene)return;
+  for(const p of arr(st.people)){const m=meshes["p"+p.id]; if(!m)continue; m.position.set(p.x,p.y,0); m.rotation.z=p.yaw; const bb=m.getObjectByName("crop"); if(bb){bb.lookAt(cam.position.x,cam.position.y,bb.getWorldPosition(new THREE.Vector3()).z); }}
+  for(const r of arr(st.robots)){let m=meshes[r.id]; if(!m){m=robotMesh(); meshes[r.id]=m; scene.add(m);} m.visible=true; m.position.set(r.x,r.y,0); m.rotation.z=r.yaw;
+    if(arr(r.path).length&&pathLine) pathLine.geometry.setFromPoints(r.path.map(p=>new THREE.Vector3(p[0],p[1],.03)));
+    if(goalRing){goalRing.visible=!!r.goal; if(r.goal) goalRing.position.set(r.goal[0],r.goal[1],.02);}}
+  for(const o of arr(st.objects)){const m=meshes["o"+o.id]; if(!m)continue; m.visible=true; m.position.set(o.x,o.y,o.z); if(o.id==="cup") m.material.color.set(o.filled?0x6F4A24:0xEAEAEA);}}
+function animate(){requestAnimationFrame(animate); try{renderer&&renderer.render(scene,cam);}catch{}}
+async function loadBackdrop(){const w=M.world;
+  if(w.splat_url){try{const spark=await import("https://cdn.jsdelivr.net/npm/@sparkjsdev/spark/dist/spark.module.js"); splat=new spark.SplatMesh({url:w.splat_url}); splat.matrixAutoUpdate=false;
+      if(arr(w.T_atlas_to_sim).length===4) splat.matrix.set(...w.T_atlas_to_sim.flat()); scene.add(splat); return;}
+    catch(e){console.warn("splat unavailable",e); if(boxGroup) boxGroup.visible=true;}}
+  const url=w.photo_a_url; if(url){const tex=new THREE.TextureLoader().load(url); tex.colorSpace=THREE.SRGBColorSpace; const wm=NX*RES,hm=NY*RES,pw=Math.min(wm,9),ph=pw*.75;
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(pw,ph),new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.92,side:THREE.DoubleSide})); pl.position.set(OX+wm/2,OY+hm,ph/2); pl.rotation.x=Math.PI/2; scene.add(pl); if(boxGroup) boxGroup.visible=true;}}
+let flip=0; addEventListener("keydown",e=>{if(e.key!=="f"||!splat)return; flip=(flip+1)%4; const s=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]][flip]; const F=new THREE.Matrix4().makeScale(...s); const T=new THREE.Matrix4(); if(arr(M.world.T_atlas_to_sim).length===4)T.set(...M.world.T_atlas_to_sim.flat()); splat.matrix.multiplyMatrices(T,F);});
+boot();
 </script>
 </body>
 </html>

@@ -163,7 +163,8 @@ class SkillRunner:
         err = wrap(math.atan2(fy - r.y, fx - r.x) - r.yaw)
         if abs(err) < math.radians(3):
             rt.sim.cmd_robot(self.k, 0.0, 0.0)
-            if t - self.tp > 0.3:
+            vx, vy = rt.sim.robot_vel(self.k)
+            if t - self.tp > 0.3 and math.hypot(vx, vy) < 0.04:   # fully stopped, so pick never fails "moving"
                 return True
         else:
             self.tp = t
@@ -222,8 +223,16 @@ class SkillRunner:
             d, dth, lat, reach, ok = reach_geometry(r.x, r.y, r.yaw, o["x"], o["y"])
             if ok or t - self.tp > 3.0 or d < 0.40:
                 rt.sim.cmd_robot(self.k, 0.0, 0.0)
-                return self._finish(True, "arrived", {"x": round(r.x, 2), "y": round(r.y, 2), "d": round(d, 2)})
+                self.phase = "settle"; self.tp = t; self.params["d"] = d
+                return None
             rt.sim.cmd_robot(self.k, 0.25 if d > 0.85 else 0.0, clamp(2.0 * dth, -0.8, 0.8))
+            return None
+        if self.phase == "settle":
+            # come to a complete stop before reporting arrival, so pick never fails "moving"
+            rt.sim.cmd_robot(self.k, 0.0, 0.0)
+            vx, vy = rt.sim.robot_vel(self.k)
+            if math.hypot(vx, vy) < 0.04 or t - self.tp > 1.5:
+                return self._finish(True, "arrived", {"x": round(r.x, 2), "y": round(r.y, 2), "d": round(self.params.get("d", 0), 2)})
             return None
         return None
 
@@ -356,6 +365,8 @@ class SkillRunner:
             self.phase = "hold"; self.tp = t
             rng = np.random.default_rng(int(rt.seed) * 1000 + int(rt.ep_step))
             miss = abs(self.params["lateral"]) + abs(float(rng.normal(0, 0.02)))
+            if getattr(rt, "demo", None):
+                miss = 0.03                     # the demo's failure is the collision, not the pour
             self.params["miss"] = miss
             if miss < 0.10:
                 rt.cup_filled = True
