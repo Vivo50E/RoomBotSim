@@ -927,10 +927,11 @@ class Runtime:
             if ep.step >= ep.cfg["max_steps"]:
                 return self.end_episode("max_steps")
             obs = self.build_obs()
-            if RECORD_FRAMES:
+            if RECORD_FRAMES or self.ep_policy.kind == "vlm":
                 fp = os.path.join(self.job_dir, "episodes", f"{ep.id}_step{ep.step:03d}.jpg")
                 if self.sim.render_eye(k, fp):
                     obs["robot_view"] = os.path.relpath(fp, self.job_dir)
+                    obs["_frame_path"] = os.path.abspath(fp)   # for the pixel-in policy; stripped before the model sees it
             self.ep_obs = obs
             if self.ep_policy.kind == "human":
                 self.ep_phase = "wait_human"

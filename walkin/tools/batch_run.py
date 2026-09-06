@@ -49,8 +49,8 @@ def main():
     p.add_argument("--episodes", type=int, default=1)
     p.add_argument("--task", default="coffee_to_person", choices=("coffee_to_person", "bring_object", "go_to"))
     p.add_argument("--seed", type=int, default=7)
-    p.add_argument("--policy", default="scripted", choices=("scripted", "chat", "raw"),
-                   help="scripted runs the built-in oracle; chat and raw call your model")
+    p.add_argument("--policy", default="scripted", choices=("scripted", "chat", "raw", "vlm"),
+                   help="scripted runs the built-in oracle; chat and raw call your model; vlm sends the robot camera frame too")
     p.add_argument("--policy-url", default=None, help="OpenAI-compatible /chat/completions, or your raw endpoint")
     p.add_argument("--policy-model", default=None)
     p.add_argument("--requester", type=int, default=None, help="person id who asked; defaults to the first")
@@ -66,7 +66,7 @@ def main():
     policy_key = os.environ.get("POLICY_KEY") or os.environ.get("OPENROUTER_API_KEY", "")
     policy = {"kind": args.policy}
     if args.policy != "scripted":
-        policy.update(url=args.policy_url or os.environ.get("POLICY_URL"),
+        policy.update(url=args.policy_url or os.environ.get("POLICY_URL") or "https://openrouter.ai/api/v1/chat/completions",
                       model=args.policy_model or os.environ.get("POLICY_MODEL"), key=policy_key)
         if not policy["url"] or not policy["key"]:
             p.error("--policy %s needs --policy-url (or POLICY_URL) and POLICY_KEY in the environment"

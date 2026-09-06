@@ -26,6 +26,34 @@ Always navigate to something before picking, pouring, or placing. Check "last_re
 
 VALID = {"navigate_to", "pick", "place", "pour", "say", "done"}
 
+# ------------------------------------------------------------------ pixel-in policy
+# kind "vlm": the model sees the robot's camera frame plus a state JSON with every coordinate removed.
+# It must decide from pixels whether the target is in reach, which side the person is on, whether the
+# cup is upright. The ids are kept so navigate_to/pick/place can name things; the geometry is not.
+VLM_ADDENDUM = """
+
+You are a PIXEL-IN policy: the attached image is the robot's forward camera at this instant. The JSON has NO positions or distances. Use the image to decide: is the target object visible and within arm's reach (large, centred, lower half of the frame)? Is a person blocking the way? If the target is not visible or looks far, navigate_to it first. Never guess a pick/pour when the object is not clearly close and centred. Reply with the JSON object only."""
+
+STRIP = {"x", "y", "z", "yaw", "center_xy", "size_xy", "pos_xy", "dist", "distance", "d", "height_m", "path", "goal"}
+
+
+def pixel_obs(obs):
+    """Observation with geometry removed. What a robot with a camera and a symbolic state tracker knows."""
+    def scrub(v):
+        if isinstance(v, dict):
+            return {k: scrub(x) for k, x in v.items() if k not in STRIP}
+        if isinstance(v, list):
+            return [scrub(x) for x in v]
+        return v
+    o = scrub({k: v for k, v in obs.items() if k not in ("robot_view", "_frame_path")})
+    return o
+
+
+def encode_image(path):
+    import base64
+    with open(path, "rb") as f:
+        return "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
+
 
 def validate(a):
     """-> (action, error_kind|None)"""
@@ -82,6 +110,27 @@ class Policy:
                 r = requests.post(url, headers=h, json=body, timeout=30)
             r.raise_for_status()
             return parse_json(r.json()["choices"][0]["message"]["content"])
+        if k == "vlm":
+            frame = obs.get("_frame_path")
+            content = [{"type": "text", "text": json.dumps(pixel_obs(obs))}]
+            if frame and os.path.exists(frame):
+                content.append({"type": "image_url", "image_url": {"url": encode_image(frame)}})
+            else:
+                log.warning("vlm policy: no frame for this step, deciding from state only")
+            body = {"model": self.cfg.get("model") or os.environ.get("VLM_MODEL", "qwen/qwen3.7-flash"),
+                    "temperature": 0, "max_tokens": 200,
+                    "messages": [{"role": "system", "content": SKILL_SYSTEM + VLM_ADDENDUM},
+                                 {"role": "user", "content": content}]}
+            if "openrouter.ai" in url:
+                body["reasoning"] = {"enabled": False}
+            r = requests.post(url, headers=h, json=body, timeout=60)
+            if r.status_code == 400:
+                body.pop("reasoning", None)
+                r = requests.post(url, headers=h, json=body, timeout=60)
+            r.raise_for_status()
+            txt = r.json()["choices"][0]["message"]["content"]
+            log.info("vlm policy said: %s", txt[:200])
+            return parse_json(txt)
         if k == "raw":
             r = requests.post(url, headers=h, json=obs, timeout=30)
             r.raise_for_status()

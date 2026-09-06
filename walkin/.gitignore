@@ -19,3 +19,4 @@ jobs/coffee/marble/*
 !jobs/coffee/marble/primary_clean.ply
 !jobs/coffee/marble/stage1.json
 !jobs/coffee/marble/fusion.json
+jobs/*/episodes/
