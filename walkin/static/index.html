@@ -56,6 +56,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
 #prog{width:260px;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;display:none}
 #prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--g1),var(--g2),var(--g3))}
 #progtxt{font:500 11px var(--mono);letter-spacing:.1em;color:var(--dim);display:none;min-width:200px}
+#policyMode{padding:7px 8px;border:1px solid var(--hair);border-radius:4px;background:var(--bg-3);color:var(--ink);font:500 10px var(--mono);letter-spacing:.04em}
 
 #side{top:64px;right:22px;width:300px;bottom:90px;display:flex;flex-direction:column;gap:12px}
 .panel{border:1px solid var(--hair);border-radius:6px;background:rgba(17,19,28,.86);padding:12px;min-height:0}
@@ -113,7 +114,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
     <div class="step" id="s3"><span class="n">03</span><button id="retrain" disabled>Retrain on failures</button><div id="prog"><i></i></div><span id="progtxt"></span></div>
     <span class="arrow">→</span>
     <div class="step" id="s4"><span class="n">04</span><button class="act" id="rerun" disabled>Run again</button></div>
-    <span style="flex:1"></span>
+    <span style="flex:1"></span><select id="policyMode" title="Decision policy"><option value="scripted">Scripted demo</option><option value="minimax">MiniMax M2.7</option></select>
     <button id="drop">Drop Spot</button><button id="reset">Reset</button>
   </div>
 </div>
@@ -163,8 +164,9 @@ const esc=s=>String(s??"").replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp
 async function runEpisode(outcome){
   const p=requester(); if(!p) return;
   $("#verdict").className=""; $("#verdict").style.display="none"; M.seen=new Set();
+  const useMiniMax=$("#policyMode").value==="minimax";
   const body={task_type:"coffee_to_person",task_text:"get me a cup of coffee and bring it to me",requester:p.id,robot_type:"spot",
-              policy:{kind:"scripted"},humans:"scripted",max_steps:18,max_seconds:300,demo:outcome,
+              policy:useMiniMax?{kind:"chat",url:"https://api.minimax.io/v1/chat/completions",model:"MiniMax-M2.7"}:{kind:"scripted"},humans:"scripted",max_steps:18,max_seconds:300,demo:useMiniMax?null:outcome,
               // act one is random; act two replays one of the crowd schedules verified end to end (see tools/verify_demo.py)
               seed:outcome==="succeed"?[2,3,4,5,6,7,8,9,10,12,13,14][Math.floor(Math.random()*12)]:Math.floor(Math.random()*1000)};
   const r=await fetch("/episode/start/"+M.job,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
