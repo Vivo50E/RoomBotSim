@@ -35,6 +35,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
 #brand .wm b{background:linear-gradient(90deg,var(--g1l),var(--g3l));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600}
 .badge{font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--hair);border-radius:999px;color:var(--dim)}
 .badge.demo{border-color:rgba(206,42,127,.5);color:var(--g1l)}
+#splatSource{max-width:190px;padding:5px 8px;border:1px solid var(--hair);border-radius:4px;background:rgba(17,19,28,.9);color:var(--ink);font:500 10px var(--mono);letter-spacing:.04em}
 #live{top:18px;right:22px;display:flex;align-items:center;gap:8px}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--dim)} .dot.on{background:var(--good);animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.3}}
@@ -88,7 +89,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
   <div id="view"></div>
   <div id="poster"><div class="label">Walk·In</div><div id="postertxt" class="dim">Loading the room</div><button id="load" class="act">Open the coffee room</button></div>
 
-  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><span class="label" title="Mouse: look · wheel: zoom · WASD: move · Q/E: up/down · Shift: boost · C: follow Spot">WASD fly · Q/E up/down · C follow</span><span class="label" id="dbg"></span></div>
+  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><select id="splatSource" title="Switch the rendered Marble splat"><option value="current">Coffee room · sim aligned</option><option value="marble-new">New Marble world · visual only</option></select><span class="label" title="Mouse: look · wheel: zoom · WASD: move · Q/E: up/down · Shift: boost · C: follow Spot">WASD fly · Q/E up/down · C follow</span><span class="label" id="dbg"></span></div>
   <div class="hud" id="live"><span class="dot" id="dot"></span><span class="label" id="livetxt">idle</span></div>
 
   <div class="hud scrim" id="task">
@@ -239,8 +240,9 @@ function drawTop(){if(!M.world)return; const W=top.clientWidth,H=top.clientHeigh
 top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({type:"goal",robot:"robot_1",x,y});});
 
 /* ---------- three ---------- */
-let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now();
+let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,sparkRenderer=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now(),externalSplat=false,splatLoad=0;
 const flyKeys=new Set();
+const NEW_MARBLE_SPLAT="https://cdn.marble.worldlabs.ai/bab725c3-c032-4f18-b2b7-992dc80d39f8/26193014-6a3e-4807-b679-4c09f828fc99_ceramic.spz";
 const dbg=t=>{const e=$("#dbg"); if(e) e.textContent=t;};
 function initThree(){const host=$("#view"); host.innerHTML="";
   renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(1); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; host.appendChild(renderer.domElement);
@@ -255,7 +257,7 @@ function initThree(){const host=$("#view"); host.innerHTML="";
   ["cup","pot"].forEach(id=>{const r=id==="cup"?.04:.07,h=id==="cup"?.1:.2; const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r*.9,h,20),new THREE.MeshStandardMaterial({color:id==="cup"?0xF2F0EA:0x26262A,roughness:.5,metalness:id==="cup"?0:.3})); m.rotation.x=Math.PI/2; m.visible=false; meshes["o"+id]=m; scene.add(m);});
   goalRing=new THREE.Mesh(new THREE.TorusGeometry(.25,.015,8,32),new THREE.MeshBasicMaterial({color:0x5fd3ee})); goalRing.visible=false; scene.add(goalRing);
   pathLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x5fd3ee,transparent:true,opacity:.7})); scene.add(pathLine);
-  bindOrbit(); loadBackdrop(); animate();}
+  bindOrbit(); $("#splatSource").addEventListener("change",e=>setSplatSource(e.target.value)); loadBackdrop(); animate();}
 function look(){cam.position.copy(eye); cam.lookAt(eye.x+Math.cos(camPitch)*Math.cos(camYaw),eye.y+Math.cos(camPitch)*Math.sin(camYaw),eye.z+Math.sin(camPitch));}
 function bindOrbit(){const el=renderer.domElement; let d=null; el.onpointerdown=e=>{d=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId);followPause=performance.now()+8000;}; el.onpointerup=()=>d=null;
   el.onpointermove=e=>{if(!d)return; camYaw-=(e.clientX-d[0])*.004; camPitch=Math.max(-1.2,Math.min(1.2,camPitch+(e.clientY-d[1])*.004)); d=[e.clientX,e.clientY]; look();};
@@ -346,6 +348,7 @@ let lastT=performance.now();
 function updateThree(st){if(!scene)return; const now=performance.now(), dt=Math.min(.1,(now-lastT)/1000); lastT=now;
   for(const p of arr(st.people)){const m=meshes["p"+p.id]; if(!m)continue; m.position.set(p.x,p.y,0); m.rotation.z=p.yaw||0; animatePerson(m,p,dt);}
   let lead=null;
+  if(externalSplat){for(const m of Object.values(meshes))m.visible=false; if(pathLine)pathLine.geometry.setFromPoints([]); if(goalRing)goalRing.visible=false; return;}
   for(const r of arr(st.robots)){let m=meshes[r.id]; if(!m){m=robotMesh(); meshes[r.id]=m; scene.add(m);} m.visible=true; m.position.set(r.x,r.y,0); m.rotation.z=r.yaw; animateRobot(m,r,dt); lead=lead||r;
     if(arr(r.path).length&&pathLine) pathLine.geometry.setFromPoints(r.path.map(p=>new THREE.Vector3(p[0],p[1],.03)));
     if(goalRing){goalRing.visible=!!r.goal; if(r.goal) goalRing.position.set(r.goal[0],r.goal[1],.02);}}
@@ -378,13 +381,16 @@ function updateThree(st){if(!scene)return; const now=performance.now(), dt=Math.
     eye.lerp(want,.04); camYaw+=((Math.atan2(lead.y-eye.y,lead.x-eye.x)-camYaw+Math.PI*3)%(Math.PI*2)-Math.PI)*.07;
     const aimZ=(lead.skill==='pick'||lead.skill==='pour'||lead.skill==='place')?1.0:0.75; const tp=Math.atan2(aimZ-eye.z,Math.hypot(lead.x-eye.x,lead.y-eye.y)); camPitch+=(tp-camPitch)*.06; look();}}
 function animate(){requestAnimationFrame(animate); flyCamera(); try{renderer&&renderer.render(scene,cam);}catch(e){}}
-async function loadBackdrop(){const w=M.world;
-  if(!w.splat_url){dbg("no splat for this room"); boxGroup.visible=true; return;}
+function setSplatSource(source){externalSplat=source==="marble-new"; follow=!externalSplat; loadBackdrop(source);}
+async function loadBackdrop(source="current"){const w=M.world, external=source==="marble-new", url=external?NEW_MARBLE_SPLAT:w.splat_url, loadId=++splatLoad;
+  if(!url){dbg("no splat for this room"); boxGroup.visible=true; return;}
+  if(splat){scene.remove(splat); splat=null;} boxGroup.visible=!external&&false;
   dbg("loading the room…");
   try{const spark=await import("https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js");
-    scene.add(new spark.SparkRenderer({renderer}));          // Spark draws nothing without this in the scene
-    splat=new spark.SplatMesh({url:w.splat_url, onLoad:()=>dbg("")}); splat.matrixAutoUpdate=false;
-    if(arr(w.T_atlas_to_sim).length===4) splat.matrix.set(...w.T_atlas_to_sim.flat());
+    if(!sparkRenderer){sparkRenderer=new spark.SparkRenderer({renderer}); scene.add(sparkRenderer);} // Spark draws nothing without this in the scene
+    if(loadId!==splatLoad)return;
+    splat=new spark.SplatMesh({url,onLoad:()=>dbg(external?"New Marble world · visual only":"")}); splat.matrixAutoUpdate=false;
+    if(!external&&arr(w.T_atlas_to_sim).length===4) splat.matrix.set(...w.T_atlas_to_sim.flat());
     scene.add(splat); window.__splat=splat; window.__scene=scene; window.__cam=cam; window.__THREE=THREE; setTimeout(()=>{ if($("#dbg").textContent==="loading the room…") dbg(""); },12000);}
   catch(e){console.error("splat failed",e); dbg("room view unavailable: "+String(e).slice(0,60)); boxGroup.visible=true;}}
 let flip=0; addEventListener("keydown",e=>{if(e.key!=="f"||!splat)return; flip=(flip+1)%4; const s=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]][flip]; const F=new THREE.Matrix4().makeScale(...s); const T=new THREE.Matrix4(); if(arr(M.world.T_atlas_to_sim).length===4)T.set(...M.world.T_atlas_to_sim.flat()); splat.matrix.multiplyMatrices(T,F); dbg("splat flip "+flip);});
