@@ -240,9 +240,10 @@ function drawTop(){if(!M.world)return; const W=top.clientWidth,H=top.clientHeigh
 top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({type:"goal",robot:"robot_1",x,y});});
 
 /* ---------- three ---------- */
-let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,sparkRenderer=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now(),externalSplat=false,splatLoad=0;
+let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,sparkRenderer=null,marbleFrame=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now(),externalSplat=false,splatLoad=0;
 const flyKeys=new Set();
 const NEW_MARBLE_SPLAT="https://cdn.marble.worldlabs.ai/bab725c3-c032-4f18-b2b7-992dc80d39f8/26193014-6a3e-4807-b679-4c09f828fc99_ceramic.spz";
+const NEW_MARBLE_VIEWER="https://marble.worldlabs.ai/viewer.html?splatUrl=https%3A%2F%2Fcdn.marble.worldlabs.ai%2Fbab725c3-c032-4f18-b2b7-992dc80d39f8%2F26193014-6a3e-4807-b679-4c09f828fc99_ceramic.spz&mobileUrl=https%3A%2F%2Fcdn.marble.worldlabs.ai%2Fbab725c3-c032-4f18-b2b7-992dc80d39f8%2F28f4e3b7-89b2-42f1-8388-b3272e2bec09_ceramic_500k.spz&marbleWorldId=bab725c3-c032-4f18-b2b7-992dc80d39f8";
 const dbg=t=>{const e=$("#dbg"); if(e) e.textContent=t;};
 function initThree(){const host=$("#view"); host.innerHTML="";
   renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(1); renderer.setSize(host.clientWidth,host.clientHeight); renderer.outputColorSpace=THREE.SRGBColorSpace; host.appendChild(renderer.domElement);
@@ -381,7 +382,9 @@ function updateThree(st){if(!scene)return; const now=performance.now(), dt=Math.
     eye.lerp(want,.04); camYaw+=((Math.atan2(lead.y-eye.y,lead.x-eye.x)-camYaw+Math.PI*3)%(Math.PI*2)-Math.PI)*.07;
     const aimZ=(lead.skill==='pick'||lead.skill==='pour'||lead.skill==='place')?1.0:0.75; const tp=Math.atan2(aimZ-eye.z,Math.hypot(lead.x-eye.x,lead.y-eye.y)); camPitch+=(tp-camPitch)*.06; look();}}
 function animate(){requestAnimationFrame(animate); flyCamera(); try{renderer&&renderer.render(scene,cam);}catch(e){}}
-function setSplatSource(source){externalSplat=source==="marble-new"; follow=!externalSplat; loadBackdrop(source);}
+function setSplatSource(source){externalSplat=source==="marble-new"; follow=!externalSplat;
+  if(externalSplat){renderer.domElement.style.display="none"; if(!marbleFrame){marbleFrame=document.createElement("iframe"); marbleFrame.title="New Marble world"; marbleFrame.allow="fullscreen"; marbleFrame.style.cssText="position:absolute;inset:0;width:100%;height:100%;border:0;background:#0b0c12"; $("#view").appendChild(marbleFrame);} marbleFrame.src=NEW_MARBLE_VIEWER; marbleFrame.style.display="block"; dbg("New Marble world · official viewer"); return;}
+  if(marbleFrame)marbleFrame.style.display="none"; renderer.domElement.style.display="block"; loadBackdrop(source);}
 async function loadBackdrop(source="current"){const w=M.world, external=source==="marble-new", url=external?NEW_MARBLE_SPLAT:w.splat_url, loadId=++splatLoad;
   if(!url){dbg("no splat for this room"); boxGroup.visible=true; return;}
   if(splat){scene.remove(splat); splat=null;} boxGroup.visible=!external&&false;
