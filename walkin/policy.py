@@ -69,16 +69,22 @@ class Policy:
         url = self.cfg.get("url") or os.environ.get("POLICY_URL", "https://openrouter.ai/api/v1/chat/completions")
         h = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
         if k == "chat":
-            body = {"model": self.cfg.get("model") or os.environ.get("POLICY_MODEL", "qwen/qwen3.7-flash"),
-                    "temperature": 0, "max_tokens": 200,
+            model = self.cfg.get("model") or os.environ.get("POLICY_MODEL", "qwen/qwen3.7-flash")
+            is_minimax = "minimax.io" in url or model.lower().startswith("minimax-")
+            body = {"model": model,
+                    "temperature": 0, "max_tokens": 300 if is_minimax else 200,
                     "messages": [{"role": "system", "content": SKILL_SYSTEM},
                                  {"role": "user", "content": json.dumps(obs)}],
                     "response_format": {"type": "json_object"}}
             if "openrouter.ai" in url:
                 body["reasoning"] = {"enabled": False}
+            if is_minimax:
+                # MiniMax otherwise puts a long <think> trace in content, which
+                # can consume the action budget before it emits the JSON action.
+                body["reasoning_split"] = True
             r = requests.post(url, headers=h, json=body, timeout=30)
             if r.status_code == 400:
-                body.pop("response_format", None); body.pop("reasoning", None)
+                body.pop("response_format", None); body.pop("reasoning", None); body.pop("reasoning_split", None)
                 r = requests.post(url, headers=h, json=body, timeout=30)
             r.raise_for_status()
             return parse_json(r.json()["choices"][0]["message"]["content"])
