@@ -123,10 +123,17 @@ class Policy:
                                  {"role": "user", "content": content}]}
             if "openrouter.ai" in url:
                 body["reasoning"] = {"enabled": False}
-            r = requests.post(url, headers=h, json=body, timeout=60)
-            if r.status_code == 400:
-                body.pop("reasoning", None)
+            import time as _t
+            r = None
+            for attempt in range(4):                      # 429/5xx from the provider are not policy mistakes
                 r = requests.post(url, headers=h, json=body, timeout=60)
+                if r.status_code == 400:
+                    body.pop("reasoning", None)
+                    r = requests.post(url, headers=h, json=body, timeout=60)
+                if r.status_code < 400:
+                    break
+                log.warning("vlm policy: HTTP %s %s (attempt %d)", r.status_code, r.text[:160], attempt + 1)
+                _t.sleep(1.5 * (attempt + 1))
             r.raise_for_status()
             txt = r.json()["choices"][0]["message"]["content"]
             log.info("vlm policy said: %s", txt[:200])
