@@ -123,6 +123,7 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
 <script type="module">
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 const $=s=>document.querySelector(s), arr=v=>Array.isArray(v)?v:[];
 const PC=["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4"], colorOf=id=>PC[(id-1)%6];
 const M={job:null,world:null,people:[],ws:null,state:null,phase:"idle",lastEp:null,seen:new Set(),retrained:false,trained:false};
@@ -243,9 +244,9 @@ function drawTop(){if(!M.world)return; const W=top.clientWidth,H=top.clientHeigh
 top.addEventListener("click",e=>{const[x,y]=toWorld(e.offsetX,e.offsetY); send({type:"goal",robot:"robot_1",x,y});});
 
 /* ---------- three ---------- */
-let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,sparkRenderer=null,marbleFrame=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now(),externalSplat=false,splatLoad=0,avatarTemplate=null;
+let scene,cam,renderer,meshes={},boxGroup,goalRing,pathLine,splat=null,sparkRenderer=null,marbleFrame=null,camYaw=0,camPitch=0,eye,follow=true,followPause=0,flyLast=performance.now(),externalSplat=false,splatLoad=0,avatarTemplate=null,avatarAnimations=[];
 const flyKeys=new Set();
-const AVATAR_URL="/static/assets/navy-visor-flight-crew.glb";
+const AVATAR_URL="/static/assets/animated-human.glb";
 const NEW_MARBLE_SPLAT="https://cdn.marble.worldlabs.ai/bab725c3-c032-4f18-b2b7-992dc80d39f8/26193014-6a3e-4807-b679-4c09f828fc99_ceramic.spz";
 const NEW_MARBLE_VIEWER="https://marble.worldlabs.ai/viewer.html?splatUrl=https%3A%2F%2Fcdn.marble.worldlabs.ai%2Fbab725c3-c032-4f18-b2b7-992dc80d39f8%2F26193014-6a3e-4807-b679-4c09f828fc99_ceramic.spz&mobileUrl=https%3A%2F%2Fcdn.marble.worldlabs.ai%2Fbab725c3-c032-4f18-b2b7-992dc80d39f8%2F28f4e3b7-89b2-42f1-8388-b3272e2bec09_ceramic_500k.spz&marbleWorldId=bab725c3-c032-4f18-b2b7-992dc80d39f8";
 const dbg=t=>{const e=$("#dbg"); if(e) e.textContent=t;};
@@ -278,15 +279,16 @@ function resizeThree(){if(!renderer)return; const h=$("#view"); renderer.setSize
 
 /* The supplied crew GLB is visual-only: simulation positions and crowd behavior stay authoritative. */
 function heightOf(p){return [1.62,1.76,1.68,1.80,1.64,1.72][(p.id-1)%6];}
-async function loadAvatar(){try{const gltf=await new GLTFLoader().loadAsync(AVATAR_URL); avatarTemplate=gltf.scene;
+async function loadAvatar(){try{const gltf=await new GLTFLoader().loadAsync(AVATAR_URL); avatarTemplate=gltf.scene; avatarAnimations=gltf.animations;
   avatarTemplate.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=true;}}); replacePeopleWithAvatar(); dbg("crew avatar loaded");
 }catch(e){console.warn("Crew avatar unavailable; keeping fallback people",e); dbg("crew avatar unavailable");}}
 function replacePeopleWithAvatar(){if(!scene||!avatarTemplate)return; M.people.forEach(p=>{const key="p"+p.id, old=meshes[key]; if(!old)return; const m=avatarMesh(p); m.position.copy(old.position); m.rotation.z=old.rotation.z; scene.remove(old); meshes[key]=m; scene.add(m);});}
-function avatarMesh(p){const H=heightOf(p), gp=new THREE.Group(), avatar=avatarTemplate.clone(true);
-  // Asset is Y-up; the sim is Z-up. Its source bounds are roughly one metre tall,
-  // so scaling by the simulated person's height keeps it grounded and legible.
-  avatar.rotation.x=Math.PI/2; avatar.scale.setScalar(H); avatar.position.z=H*.5;
-  gp.userData={staticAvatar:true}; gp.add(avatar); const tag=labelSprite(String(p.id),colorOf(p.id)); tag.scale.set(.17,.17,1); tag.position.z=H+.16; gp.add(tag); return gp;}
+function avatarMesh(p){const H=heightOf(p), gp=new THREE.Group(), avatar=cloneSkeleton(avatarTemplate);
+  // This source asset uses centimetres and Y-up. The simulation is metres and Z-up.
+  avatar.rotation.x=Math.PI/2; avatar.scale.setScalar(H/552); avatar.position.z=.005;
+  const mixer=new THREE.AnimationMixer(avatar), clips={}; for(const clip of avatarAnimations){const n=clip.name.split("|").pop().toLowerCase(); clips[n]=clip;}
+  const idle=clips.idle||avatarAnimations[0]; const action=mixer.clipAction(idle); action.play();
+  gp.userData={animatedAvatar:true,mixer,clips,action,actionName:"idle"}; gp.add(avatar); const tag=labelSprite(String(p.id),colorOf(p.id)); tag.scale.set(.17,.17,1); tag.position.z=H+.16; gp.add(tag); return gp;}
 function personMesh(p){return avatarTemplate?avatarMesh(p):proceduralPersonMesh(p);}
 function proceduralPersonMesh(p){const H=heightOf(p), seated=p.posture==="seated"; const gp=new THREE.Group(); gp.userData={h:H,seated,dist:0,ph:p.id*1.7};
   const shirt=new THREE.MeshStandardMaterial({color:new THREE.Color(colorOf(p.id)).multiplyScalar(.8),roughness:.85});
@@ -316,7 +318,7 @@ function proceduralPersonMesh(p){const H=heightOf(p), seated=p.posture==="seated
   hips.position.z=.92*s;                          // standing hip height
   if(seated){hips.position.z=.74;   /* on a bar stool at the high table */ for(const L of legs){L.th.rotation.y=-Math.PI/2; L.kn.rotation.y=Math.PI/2;} for(const A of arms){A.sh.rotation.y=-.6; A.el.rotation.y=-1.1;}}
   const tag=labelSprite(String(p.id),colorOf(p.id)); tag.scale.set(.17,.17,1); tag.position.z=(seated?1.45:H)+.16; gp.add(tag); return gp;}
-function animatePerson(m,p,dt){const u=m.userData; if(u.staticAvatar||u.seated) return; const v=Math.hypot(p.vx||0,p.vy||0); u.dist+=v*dt; const sw=Math.min(1,v/.8)*.55;
+function animatePerson(m,p,dt){const u=m.userData; if(u.animatedAvatar){const v=Math.hypot(p.vx||0,p.vy||0), name=v>.04?"walk":"idle"; if(name!==u.actionName&&u.clips[name]){const next=u.mixer.clipAction(u.clips[name]); next.reset().fadeIn(.16).play(); u.action.fadeOut(.16); u.action=next;u.actionName=name;} u.mixer.update(dt); return;} if(u.staticAvatar||u.seated) return; const v=Math.hypot(p.vx||0,p.vy||0); u.dist+=v*dt; const sw=Math.min(1,v/.8)*.55;
   for(const L of u.legs){const ph=u.dist*5.2+u.ph+(L.side>0?Math.PI:0); L.th.rotation.y=Math.sin(ph)*sw; L.kn.rotation.y=Math.max(0,Math.sin(ph+.9))*sw*.9;}
   for(const A of u.arms){const ph=u.dist*5.2+u.ph+(A.side>0?0:Math.PI); A.sh.rotation.y=Math.sin(ph)*sw*.6; A.el.rotation.y=-.25-Math.max(0,Math.sin(ph))*sw*.5;}
   u.hips.position.z=.92*(u.h/1.75)+Math.abs(Math.sin(u.dist*5.2))*.02*Math.min(1,v/.8);}
