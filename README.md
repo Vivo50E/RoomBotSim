@@ -1,5 +1,9 @@
 # RoomBotSim
 
+![RoomBotSim running the coffee-delivery simulation](docs/screenshots/roombotsim-demo.png)
+
+*RoomBotSim: reconstructed room, live crowd, and task-control interface.*
+
 Four chest-height photos of a room become a walkable simulation of that room, with the people who were
 in it. You drop a robot in, give it a task in plain language, and every attempt is recorded as robot
 training data — including the failures, which are the point.
