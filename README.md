@@ -1,4 +1,4 @@
-# WALK·IN
+# RoomBotSim
 
 Four chest-height photos of a room become a walkable simulation of that room, with the people who were
 in it. You drop a robot in, give it a task in plain language, and every attempt is recorded as robot
@@ -16,7 +16,7 @@ photos ──► World Labs Marble ──► cross-compare & repair ──► oc
 ## Run it
 
 ```bash
-cd walkin
+cd roombotsim
 uv venv .venv --python 3.13 && uv pip install -r requirements.txt --python .venv/bin/python
 cp .env.example .env          # then paste your keys in
 set -a; . ./.env; set +a
@@ -85,7 +85,16 @@ spills. Failures are tagged, not smoothed over.
 4. **Rerun with current policy** replays the same room, seed, task and crowd schedule so the two runs
    are comparable side by side.
 
-## Layout
+## Repository layout
+
+```
+roombotsim/       runnable FastAPI app, simulation, frontend, tests and tools
+docs/specs/       implementation specifications and task briefs
+docs/operations/  runbooks and performance notes
+docs/audit/       historical acceptance reports
+```
+
+## Application layout
 
 | File | What it does |
 |---|---|
@@ -103,4 +112,4 @@ spills. Failures are tagged, not smoothed over.
 | `server.py` | Pipeline, runtime loop, WebSocket, HTTP API |
 | `static/index.html` | The whole operator console |
 
-Work that is queued rather than done is written up in `TASK-*.md` at the repo root, one file per agent.
+Current implementation specifications are in `docs/specs/`.

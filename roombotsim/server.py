@@ -1,4 +1,4 @@
-"""WALK-IN server: photo pipeline, sim runtime, WebSocket, and an HTTP API any model can drive."""
+"""RoomBotSim server: photo pipeline, sim runtime, WebSocket, and an HTTP API any model can drive."""
 import os, io, json, math, time, uuid, base64, logging, threading, asyncio, traceback
 import numpy as np
 
@@ -32,7 +32,7 @@ PHOTOS = ["A", "B", "C", "D"]
 BRAIN_PERIOD_S = float(os.environ.get("BRAIN_PERIOD_S", "5"))
 RECORD_FRAMES = os.environ.get("RECORD_FRAMES", "0") == "1"
 
-app = FastAPI(title="WALK-IN")
+app = FastAPI(title="RoomBotSim")
 os.makedirs("jobs", exist_ok=True)
 app.mount("/jobs", StaticFiles(directory="jobs"), name="jobs")
 app.mount("/static", StaticFiles(directory="static"), name="static")

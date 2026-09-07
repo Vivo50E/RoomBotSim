@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run persisted WALK-IN episodes without uvicorn.
+"""Run persisted RoomBotSim episodes without uvicorn.
 
 Example: python tools/batch_run.py --job test --episodes 10 --task coffee_to_person
 """
@@ -44,7 +44,7 @@ def step(rt, seconds, policy_wait_s=120.0):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Headless persistent WALK-IN episode runner")
+    p = argparse.ArgumentParser(description="Headless persistent RoomBotSim episode runner")
     p.add_argument("--job", default="test")
     p.add_argument("--episodes", type=int, default=1)
     p.add_argument("--task", default="coffee_to_person", choices=("coffee_to_person", "bring_object", "go_to"))

@@ -14,7 +14,7 @@ No product remediation is required for the audited requirements.
 ## Commands actually run
 
 ```sh
-cd walkin && python tests/run_all.py
+cd roombotsim && python tests/run_all.py
 ```
 
 Actual final output:
@@ -39,9 +39,9 @@ PASS performance: 30 s wall advances >=29 s (6 people, 3 robots, network WebSock
 > of this audit, including the WebSocket recheck below, was verified independently and holds.
 
 ```sh
-cd walkin
+cd roombotsim
 python -m uvicorn server:app --host 127.0.0.1 --port 8766
-python static/verify_task07.py --url http://127.0.0.1:8766 --exercise-human
+python tests/verify_ui.py --url http://127.0.0.1:8766 --exercise-human
 ```
 
 Actual verifier output:

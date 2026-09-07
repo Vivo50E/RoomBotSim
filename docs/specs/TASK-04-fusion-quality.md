@@ -4,7 +4,7 @@
 
 ## What exists and what it is worth
 
-`walkin/fusion.py` takes the multi-image world plus one single-image world per photo and repairs the
+`roombotsim/fusion.py` takes the multi-image world plus one single-image world per photo and repairs the
 geometry:
 
 - `normalize` puts every cloud in the same kind of frame: Marble axes to Z-up, metric scale and ground

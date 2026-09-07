@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the LAN handoff QR. Standard library plus Pillow, which the project already requires.
 
-Usage: python static/generate_qr.py [http://LAN-IP:PORT/]
+Usage: python tools/generate_qr.py [http://LAN-IP:PORT/]
 
 An earlier version imported cv2 to do the encoding. OpenCV is not in requirements.txt and is not in the
 project venv, so the script only ran under an ambient interpreter that happened to have it. The byte-mode
@@ -249,7 +249,7 @@ def write_png(text, path, scale=8, quiet=4):
 
 
 if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else "http://%s:%s/" % (lan_ip(), os.getenv("WALKIN_PORT", "8000"))
+    target = sys.argv[1] if len(sys.argv) > 1 else "http://%s:%s/" % (lan_ip(), os.getenv("ROOMBOTSIM_PORT", "8000"))
     if "127.0.0.1" in target or "localhost" in target:
         raise SystemExit("Refusing a loopback QR; pass a reachable LAN URL explicitly.")
     write_png(target, os.path.join(os.path.dirname(os.path.abspath(__file__)), "qr.png"))

@@ -8,7 +8,7 @@ been generated from photos yet.
 
 ## What exists
 
-`walkin/marble.py` implements the whole World API flow against `https://api.worldlabs.ai`:
+`roombotsim/marble.py` implements the whole World API flow against `https://api.worldlabs.ai`:
 `media-assets:prepare_upload` → PUT bytes → `worlds:generate` with a `multi-image` prompt carrying one
 azimuth per photo and `reconstruct_images: true` → poll `operations/{id}` → `worlds/{id}:export` for PLY
 splats and a GLB collider mesh. `reconstruct_room()` also fires one single-image world per photo when

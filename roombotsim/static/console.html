@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WALK-IN</title>
+<title>RoomBotSim</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -211,7 +211,7 @@ label{display:block;font-size:11px;color:var(--ink-dim);margin:8px 0 3px}
     <input type="file" id="mobileFiles" accept="image/*" multiple aria-describedby="mobmsg">
     <button id="mobileBuild" class="primary mobile-build">Upload photos to laptop</button>
     <div class="handoff">
-      <img src="/static/qr.png" alt="QR code for the WALK-IN laptop console">
+      <img src="/static/qr.png" alt="QR code for the RoomBotSim laptop console">
       <p class="dim">After upload, return to the laptop to review the map and run the room. Scan this code only when your phone is on the same network.</p>
     </div>
   </main>
@@ -239,7 +239,7 @@ async function uploadPhotos(fs) {
     const r = await fetch("/upload", {method:"POST", body:fd});
     if (!r.ok) throw new Error(await r.text());
     const j = await r.json(); M.job = j.job_id; M.photos = j.photos || ["A","B"];
-    $("#mobmsg").textContent = "Upload complete. Continue on the laptop while WALK·IN builds your room."; $("#mobmsg").style.color = "";
+    $("#mobmsg").textContent = "Upload complete. Continue on the laptop while RoomBotSim builds your room."; $("#mobmsg").style.color = "";
     poll();
   } catch (e) { setStatus("Upload failed. " + e.message, true); $("#build").disabled = false; $("#mobileBuild").disabled = false; }
 }
@@ -862,7 +862,7 @@ document.querySelectorAll("[data-skill]").forEach(b => b.onclick = () => {
   send(msg);
 });
 // Narrow test hook: enables deterministic regression checks without changing API behavior.
-window.__walkinTest = { fitTop, toPx, toWorld, state: () => M };
+window.__roomBotSimTest = { fitTop, toPx, toWorld, state: () => M };
 fitTop();
 </script>
 </body>

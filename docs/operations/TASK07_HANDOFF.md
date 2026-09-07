@@ -11,17 +11,17 @@ the runtime writes its existing episode JSONL/SFT schema.
 ## QR handoff
 
 `qr.png` is a valid, decoded QR for `http://10.104.4.240:8000/`, the LAN address detected
-on this machine. Run `python static/generate_qr.py http://LAN.IP:PORT/` after a network or
+on this machine. Run `python tools/generate_qr.py http://LAN.IP:PORT/` after a network or
 port change. `QR_README.md` documents the LAN server requirement and generator.
 
 ## Verification run
 
-From `walkin/`, with the server running on `127.0.0.1:8000`:
+From `roombotsim/`, with the server running on `127.0.0.1:8000`:
 
 ```sh
-python3 -m py_compile static/verify_task07.py static/generate_qr.py
-python3 static/verify_task07.py --url http://127.0.0.1:8000 --exercise-human
-python3 static/generate_qr.py http://192.168.50.42:8000/  # decoded with cv2, then restored qr.png
+python3 -m py_compile tests/verify_ui.py tools/generate_qr.py
+python3 tests/verify_ui.py --url http://127.0.0.1:8000 --exercise-human
+python3 tools/generate_qr.py http://192.168.50.42:8000/  # decoded with cv2, then restored qr.png
 ```
 
 Results on this machine: Python and JS-module syntax passed; OpenCV decoded the checked-in
@@ -44,4 +44,4 @@ No backend change was made. One backend-only polish item observed during the liv
 `Runtime.start_episode()` does not reset `ep_t_step` before a Human teleop segment, so the
 recorded `duration_s` for that consolidated navigation can include time before the episode.
 The samples, ordering, JSONL schema, and SFT export are correct; resetting that timer in
-`walkin/server.py` would make the duration precise, but is outside the static-only boundary.
+`roombotsim/server.py` would make the duration precise, but is outside the static-only boundary.

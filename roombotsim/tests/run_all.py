@@ -18,7 +18,7 @@ import agents as agentsmod, commands, server, episodes as epmod
 from runtime_ops import load_jobs, rotate_episodes
 
 # Every generated artifact belongs to a disposable fixture, never jobs/test.
-TEST_ROOT = tempfile.mkdtemp(prefix="walkin-suite-")
+TEST_ROOT = tempfile.mkdtemp(prefix="roombotsim-suite-")
 JOB_DIR = os.path.join(TEST_ROOT, "test")
 world, people = mtw.build(JOB_DIR)
 nx, ny = world["size_cells"]
@@ -177,7 +177,7 @@ check("bad policy: picking from across the room is tagged",
       any(t.startswith("precondition:too_far") for t in bad["tags"]), str(bad["tags"]))
 
 # --- persisted restart recovery and safe archival rotation
-scratch = tempfile.mkdtemp(prefix="walkin-test-")
+scratch = tempfile.mkdtemp(prefix="roombotsim-test-")
 try:
     jd = os.path.join(scratch, "reloadable"); os.makedirs(jd)
     shutil.copy(os.path.join(JOB_DIR, "world.json"), os.path.join(jd, "world.json"))

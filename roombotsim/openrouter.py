@@ -34,7 +34,7 @@ def has_key():
 
 def _headers():
     return {"Authorization": f"Bearer {api_key()}", "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:8000", "X-Title": "walk-in"}
+            "HTTP-Referer": "http://localhost:8000", "X-Title": "RoomBotSim"}
 
 
 def image_part(jpeg_path):

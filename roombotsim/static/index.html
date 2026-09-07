@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WALK·IN</title>
+<title>RoomBotSim</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -88,9 +88,9 @@ button.act:hover:not(:disabled){filter:brightness(1.08)}
 <body>
 <div id="stage">
   <div id="view"></div>
-  <div id="poster"><div class="label">Walk·In</div><div id="postertxt" class="dim">Loading the room</div><button id="load" class="act">Open the coffee room</button></div>
+  <div id="poster"><div class="label">RoomBotSim</div><div id="postertxt" class="dim">Loading the room</div><button id="load" class="act">Open the coffee room</button></div>
 
-  <div class="hud" id="brand"><span class="wm">WALK<b>·</b>IN</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><select id="splatSource" title="Switch the rendered Marble splat"><option value="current">Coffee room · sim aligned</option><option value="marble-new">New Marble world · visual only</option></select><span class="label" title="Mouse: look · wheel: zoom · WASD: move · Q/E: up/down · Shift: boost · C: follow Spot">WASD fly · Q/E up/down · C follow</span><span class="label" id="dbg"></span></div>
+  <div class="hud" id="brand"><span class="wm">ROOM<b>·</b>BOT<b>·</b>SIM</span><span class="badge demo" title="Reconstruction, people, physics and failure data are real. The fine-tune step is simulated.">Demo · retrain simulated</span><select id="splatSource" title="Switch the rendered Marble splat"><option value="current">Coffee room · sim aligned</option><option value="marble-new">New Marble world · visual only</option></select><span class="label" title="Mouse: look · wheel: zoom · WASD: move · Q/E: up/down · Shift: boost · C: follow Spot">WASD fly · Q/E up/down · C follow</span><span class="label" id="dbg"></span></div>
   <div class="hud" id="live"><span class="dot" id="dot"></span><span class="label" id="livetxt">idle</span></div>
 
   <div class="hud scrim" id="task">

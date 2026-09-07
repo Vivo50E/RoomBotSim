@@ -89,7 +89,7 @@ def _content(asset_id=None, path=None):
 
 # ------------------------------------------------------------------ generate / poll
 
-def generate_multi_image(asset_ids, azimuths=None, model=None, seed=None, display_name="walk-in room", text_prompt=None):
+def generate_multi_image(asset_ids, azimuths=None, model=None, seed=None, display_name="RoomBotSim room", text_prompt=None):
     """One world from up to 4 photos, reconstructing the input views."""
     n = len(asset_ids)
     if azimuths is None:
@@ -108,7 +108,7 @@ def generate_multi_image(asset_ids, azimuths=None, model=None, seed=None, displa
     return _req("POST", f"{API}/worlds:generate", headers=_h(), json=body).json()
 
 
-def generate_single_image(asset_id, model=None, seed=None, display_name="walk-in view"):
+def generate_single_image(asset_id, model=None, seed=None, display_name="RoomBotSim view"):
     # is_pano takes the JSON literals 'auto', true or false. Sending the string "false" is a 422.
     body = {"world_prompt": {"type": "image", "image_prompt": _content(asset_id=asset_id), "is_pano": False},
             "model": model or os.environ.get("MARBLE_CROSS_MODEL", "marble-1.0-draft"),

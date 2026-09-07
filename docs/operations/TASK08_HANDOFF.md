@@ -13,7 +13,7 @@
 ## Verification
 - `python -m py_compile runtime_ops.py episodes.py server.py tools/batch_run.py tests/run_all.py`
 - `python tests/run_all.py` — **23 passed, 0 failed** (including real network WebSocket performance assertions).
-- `python static/verify_task07.py` — static console regression verifier passed; no static files were edited by this task.
+- `python tests/verify_ui.py` — console regression verifier passed; no frontend files were edited by this task.
 - isolated batch smoke: `python tools/batch_run.py --jobs-root <tmp> --job test --episodes 1 --task go_to --max-seconds 8` exited 0 with a closed timeout record; invalid `--max-seconds 0` exited 2.
 
 ## Measured performance

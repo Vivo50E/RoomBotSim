@@ -125,7 +125,7 @@ def build_mjcf(world, people, robot_types=None, spawns=None, n_robots=N_ROBOTS):
     for k in range(1, n_robots + 1):
         bodies.append(robot_xml(k, robot_types.get(k, "spot")))
     nl = "\n"
-    return f'''<mujoco model="walkin">
+    return f'''<mujoco model="roombotsim">
 <compiler angle="radian"/>
 <option timestep="0.01" gravity="0 0 -9.81" integrator="implicitfast"/>
 <default><geom condim="3" friction="0.6 0.005 0.0001"/></default>

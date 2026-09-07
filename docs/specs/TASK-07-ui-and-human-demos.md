@@ -30,7 +30,7 @@ Chrome extension disconnected before the visual pass. That is the first job.
    Two things to save you time. This laptop's address as of 5 September is **http://10.104.4.240:8000**, and a
    server is already running there, so the browser pass can start immediately without booting one.
 
-   And a boundary note: `requirements.txt` lives in `walkin/`, which the other worker owns, so you cannot
+   And a boundary note: `requirements.txt` lives in `roombotsim/`, which the other worker owns, so you cannot
    add a QR dependency to it. Do one of these instead. Best: have the page render the QR itself in
    JavaScript from `location.origin` and drop the PNG entirely, which also survives the laptop changing
    networks. Otherwise vendor a small pure-Python encoder under `static/` with a one-line generator
@@ -48,7 +48,7 @@ These were found reading the code, not running it. Fix them as part of the task.
    silent: the person taps upload with one photo and nothing appears to happen. Route status to `#mobmsg`
    as well as `#statusline`, or give `setStatus` a mobile-aware target.
 
-2. **`static/generate_qr.py` does not run.** Its docstring says "without adding a Python dependency" and
+2. **`tools/generate_qr.py` does not run.** Its docstring says "without adding a Python dependency" and
    then line 6 is `import cv2`. OpenCV is not installed in `.venv` and is not in `requirements.txt`, so
    the script raises `ModuleNotFoundError` before it reaches any of its fallback logic. `qr.png` itself is
    fine — a valid 296x296 PNG, evidently produced some other way — but nobody can regenerate it, which was

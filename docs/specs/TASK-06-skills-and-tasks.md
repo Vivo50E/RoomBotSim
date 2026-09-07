@@ -4,7 +4,7 @@
 
 ## What exists
 
-Six skills in `walkin/skills.py`, each with real preconditions checked in a fixed order so the first
+Six skills in `roombotsim/skills.py`, each with real preconditions checked in a fixed order so the first
 failure is the reported reason: `navigate_to`, `pick`, `place`, `pour`, `say`, `done`. Manipulation is
 skill level — `pick` welds the object to the hand via a MuJoCo equality constraint, `place` unwelds it
 onto whatever surface is under the hand, `pour` is a tilt animation with an analytic outcome. Two objects,

@@ -3,7 +3,7 @@
 ## Verification
 
 ```sh
-cd /Users/avneh/Code/hackathonproj7/walkin
+cd /path/to/RoomBotSim/roombotsim
 python -m py_compile tests/run_all.py
 python tests/run_all.py
 ```

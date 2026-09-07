@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Focused WALK-IN console smoke/regression checks.
+"""Focused RoomBotSim console smoke/regression checks.
 
-Run from walkin/ after starting the server:
-  python static/verify_task07.py --url http://127.0.0.1:8000
-  python static/verify_task07.py --url http://127.0.0.1:8000 --exercise-human
+Run from roombotsim/ after starting the server:
+  python tests/verify_ui.py --url http://127.0.0.1:8000
+  python tests/verify_ui.py --url http://127.0.0.1:8000 --exercise-human
 
 The optional human pass creates one demo episode, drives briefly with W, and checks
 the visible log and, for a local server, its recorded JSONL navigation/skill sequence.
@@ -95,7 +95,7 @@ def browser_pass(url, exercise_human):
             # never render duplicate navigation rows.
             assert log.count("navigate_to") <= 1, log
             assert "pick(" in log, log
-            local = page.evaluate("() => window.__walkinTest.state()")
+            local = page.evaluate("() => window.__roomBotSimTest.state()")
             record = ROOT.parent / "jobs" / local["job"] / "episodes" / (local["lastEpisode"] + ".jsonl")
             if record.exists():
                 steps = [json.loads(line) for line in record.read_text().splitlines() if line]
@@ -114,7 +114,7 @@ def browser_pass(url, exercise_human):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", help="running WALK-IN base URL")
+    ap.add_argument("--url", help="running RoomBotSim base URL")
     ap.add_argument("--exercise-human", action="store_true")
     args = ap.parse_args()
     check_assets()

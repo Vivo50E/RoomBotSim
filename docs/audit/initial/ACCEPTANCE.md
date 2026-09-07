@@ -25,7 +25,7 @@ All other inspected TASK-07/TASK-08 requirements passed or are evidenced below. 
 ## Commands run and outputs
 
 ```sh
-cd walkin && python tests/run_all.py
+cd roombotsim && python tests/run_all.py
 ```
 
 Output summary: **22 passed, 0 failed**. The final performance line was:
@@ -37,8 +37,8 @@ PASS performance: 30 s wall advances >=29 s (6 people, 3 robots, state-stream cl
 The run emitted pre-existing NumPy divide/overflow/invalid-value warnings from `recon.py:179` and `geometry.py:28,42,43,52`; no assertion failed.
 
 ```sh
-cd walkin && python -m uvicorn server:app --host 127.0.0.1 --port 8765
-cd walkin && python static/verify_task07.py --url http://127.0.0.1:8765 --exercise-human
+cd roombotsim && python -m uvicorn server:app --host 127.0.0.1 --port 8765
+cd roombotsim && python tests/verify_ui.py --url http://127.0.0.1:8765 --exercise-human
 ```
 
 The app was locally served and the verifier output:
@@ -54,7 +54,7 @@ TASK-07 static checks passed
 The optional Playwright Human branch was enabled. Its assertions confirmed the local JSONL has exactly one teleop-backed `navigate_to` immediately before `pick` when the record exists (it did for this local server), and no duplicate visible navigation row.
 
 ```sh
-cd walkin && curl -sS http://127.0.0.1:8765/status/dbg2
+cd roombotsim && curl -sS http://127.0.0.1:8765/status/dbg2
 curl -sS -X POST http://127.0.0.1:8765/runtime/start/dbg2
 curl -sS http://127.0.0.1:8765/status/dbg2
 ```
@@ -62,16 +62,16 @@ curl -sS http://127.0.0.1:8765/status/dbg2
 Output summary: persisted `dbg2` was `ready`, had a world and four people; start returned `{"ok":true,"job_id":"dbg2"}`; status became `running`.
 
 ```sh
-cd walkin && python -m py_compile runtime_ops.py episodes.py server.py tools/batch_run.py static/generate_qr.py static/verify_task07.py
-cd walkin && python tools/batch_run.py --jobs-root /tmp/audit-walkin-batch --job test --episodes 1 --task go_to --max-seconds 8
+cd roombotsim && python -m py_compile runtime_ops.py episodes.py server.py tools/batch_run.py tools/generate_qr.py tests/verify_ui.py
+cd roombotsim && python tools/batch_run.py --jobs-root /tmp/audit-roombotsim-batch --job test --episodes 1 --task go_to --max-seconds 8
 ```
 
 `py_compile: PASS`. The isolated batch completed with a closed timeout record, exited 0, and printed `"finished": true` (the short 8 s budget predictably reported `success_rate: 0.0`, tag `timeout`).
 
 ```sh
-cd walkin && python static/generate_qr.py http://192.168.50.42:8000/
+cd roombotsim && python tools/generate_qr.py http://192.168.50.42:8000/
 # Pillow inspection and OpenCV decode
-cd walkin && python static/generate_qr.py http://127.0.0.1:8000/
+cd roombotsim && python tools/generate_qr.py http://127.0.0.1:8000/
 ```
 
 Generated QR output was PNG `(264, 264)` and decoded to the supplied LAN URL. The restored checked-in QR decoded to `http://10.104.4.240:8000/`. Loopback regeneration correctly exited 1 with `Refusing a loopback QR`.
@@ -89,14 +89,14 @@ Generated QR output was PNG `(264, 264)` and decoded to the supplied LAN URL. Th
 | `/api/act` durable-disconnect semantics documented | PASS | `server.py:1119-1153` documents/block-waits behaviour and `server.py:1156-1169` exposes cancellation text. `OPERATIONS.md` also documents reconnect/explicit stop. `/api/schema` returned the same policy from the served app. |
 | Map proportions, initial canvas paint, confirm drag | PASS | `static/index.html:410-430` DPR-sizes first paint and fits room extent; `:492-523` uses screen-size-aware hit tests, pointer capture/cancel, and clamped confirm dragging. Static regression covers 7x9, 20x20, and corridor extents; Playwright confirmed desktop bitmap dimensions after first paint. |
 | Human teleop recording/export | PASS | `server.py:805-809` resets teleop time at episode start; `server.py:920-955` records one `navigate_to` with samples before the requested skill. Browser Human test drove W then pick and checked the local JSONL sequence; UI `/sft` request includes `include_human:true` at `index.html:825-832`. |
-| Phone/mobile errors and QR LAN handoff | PASS (physical phone not exercised) | `index.html:99-105,234-243,294-303` exposes mobile uploader, QR handoff, and mirrors errors to `#mobmsg`; mobile Playwright pass confirms uploader/QR visibility. Generator has no OpenCV import (`static/generate_qr.py`) and QR decoding/regeneration passed. Actual phone upload/on-LAN scan remains untested. |
+| Phone/mobile errors and QR LAN handoff | PASS (physical phone not exercised) | `index.html:99-105,234-243,294-303` exposes mobile uploader, QR handoff, and mirrors errors to `#mobmsg`; mobile Playwright pass confirms uploader/QR visibility. Generator has no OpenCV import (`tools/generate_qr.py`) and QR decoding/regeneration passed. Actual phone upload/on-LAN scan remains untested. |
 | Focus/reduced motion/contrast | PASS | Visible cyan `:focus-visible` outline is `index.html:26`; reduced-motion suppression is line 98. `--ink-dim #AEBBC9` over `--panel #161C25` is a visibly high-contrast pairing (approximately 8:1); no focus outline is suppressed. |
 | Frontend/backend compatibility | PASS | Console endpoints/messages match server routes: `/upload`, `/status`, `/confirm`, `/test`, `/ws`, episode APIs and `/sft`; Human `teleop`/`skill` payloads are handled at `server.py:1027-1034`. Local desktop/WebSocket/Human smoke completed without page errors. |
 
 ## Required remediation
 
 1. **Replace the performance proxy with a real network WebSocket client.**
-   - **File/lines:** `walkin/tests/run_all.py:233-244`.
+   - **File/lines:** `roombotsim/tests/run_all.py:233-244`.
    - Start an actual ASGI server bound to a temporary/local port for the performance fixture, register the fixture runtime/job with that server, and connect a real client to `ws://127.0.0.1:<port>/ws/<job>` for the full 30.1-second measurement. Continuously receive state frames (20 Hz server cadence) and JSON-decode them. Assert connection, receipt of state frames, six people, three active robots, and `elapsed_sim >= 29.0`.
    - Do not replace this with `Runtime.state_since`, FastAPI direct-call testing, or an in-process serialization loop; those bypass `server.py:994-1035` and do not satisfy the requirement.
 
